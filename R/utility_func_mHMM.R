@@ -53,3 +53,12 @@ hms <- function(t){
         formatC(t %% 60, width = 2, format = "d", flag = "0"),
         sep = ":")
 }
+
+ecr <- function(pivot, alloc, m){
+  n <- length(pivot)
+  conf_mat <- table(factor(alloc, levels = 1:m), factor(pivot, levels = 1:m))
+  cost_mat <- conf_mat%*%(1-diag(m))
+  permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
+  x_repermute <- permutation[alloc]
+  return(x_repermute)
+}

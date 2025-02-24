@@ -1,7 +1,7 @@
 #' Multilevel hidden  Markov model using Bayesian estimation for continuous
 #' observations
 #'
-#' \code{mHMM_vary} fits a multilevel (also known as mixed or random effects)
+#' \code{mHMM_vary_relabel} fits a multilevel (also known as mixed or random effects)
 #' hidden Markov model (HMM) to intense longitudinal data with categorical
 #' and/or continuous (i.e., normally distributed) observations of multiple
 #' subjects using Bayesian estimation, and creates an object of class mHMM_vary.
@@ -289,6 +289,7 @@
 #'   \code{gamma_scalar} set to 2.93 / sqrt(\code{m} - 1), and \code{gamma_w} set to
 #'   0.1. See the section \emph{Scaling the proposal distribution of the RW
 #'   Metropolis sampler} in \code{vignette("estimation-mhmm")} for details.
+#' @param relabel_train Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.
 #'
 #' @return \code{mHMM_cont} returns an object of class \code{mHMM_cont}, which has
 #'   \code{print} and \code{summary} methods to see the results.
@@ -474,9 +475,9 @@
 #'
 #'
 
-mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_hyp_prior, mcmc, return_path = FALSE, print_iter, show_progress = TRUE,
-                      emiss_cat_hyp_prior = NULL, emiss_sampler = NULL, gamma_hyp_prior = NULL, gamma_sampler = NULL){
-
+mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_hyp_prior, mcmc, return_path = FALSE, print_iter, show_progress = TRUE,
+                      emiss_cat_hyp_prior = NULL, emiss_sampler = NULL, gamma_hyp_prior = NULL, gamma_sampler = NULL, relabel_train  = 100){
+  
   if(!missing(print_iter)){
     warning("The argument print_iter is depricated; please use show_progress instead to show the progress of the algorithm.")
   }
@@ -530,7 +531,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
     }
   }
   n_total 		<- dim(ypooled)[1]
-
+  
   # covariates
   n_dep1 <- 1 + n_dep
   nx <- numeric(n_dep1)
@@ -566,12 +567,12 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       }
     }
   }
-
+  
   # Initialize mcmc argumetns
   J 				<- mcmc$J
   burn_in			<- mcmc$burn_in
-
-
+  start_relabeling <- relabel_train + burn_in + 2
+  
   # Initalize priors and hyper priors --------------------------------
   # Initialize gamma sampler
   if(is.null(gamma_sampler)) {
@@ -583,9 +584,9 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
     gamma_scalar    <- gamma_sampler$gamma_scalar
     gamma_w         <- gamma_sampler$gamma_w
   }
-
-
-
+  
+  
+  
   # Initialize Gamma hyper prior
   if(is.null(gamma_hyp_prior)){
     gamma_mu0	  <- rep(list(matrix(0,nrow = nx[1], ncol = m - 1)), m)
@@ -599,14 +600,14 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
     gamma_nu			<- gamma_hyp_prior$gamma_nu
     gamma_V			  <- gamma_hyp_prior$gamma_V
   }
-
-
+  
+  
   # Initialize continous emiss hyper prior
   if(n_cont > 0){
     if(missing(emiss_cont_hyp_prior)){
       stop("The hyper-prior values for the Normal emission distribution(s) denoted by emiss_cont_hyp_prior needs to be specified")
     }
-
+    
     # emiss_mu0: a list containing n_cont matrices with in the first row the hypothesized mean values of the Normal emission
     # distributions in each of the states over the m coloumns. Subsequent rows contain the hypothesised regression
     # coefficients for covariates influencing the state dependent mean value of the normal distribution
@@ -627,7 +628,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       emiss_cont_b0[[q]] <- emiss_cont_hyp_prior$emiss_b0[[q]]
     }
   }
-
+  
   # Initialize categorical emiss sampler
   if(n_cat > 0){
     if(is.null(emiss_sampler)){
@@ -643,7 +644,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       emiss_scalar 	<- emiss_sampler$emiss_scalar
       emiss_w    		<- emiss_sampler$emiss_w
     }
-
+    
     # Initialize Pr hyper prior
     # emiss_mu0: for each dependent variable, emiss_mu0 is a list, with one element for each state.
     # Each element is a matrix, with number of rows equal to the number of covariates (with the intercept being one cov),
@@ -673,54 +674,54 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       }
     }
   }
-
-
-#####################
-
+  
+  
+  #####################
+  
   # Define objects used to store data in mcmc algorithm, not returned ----------------------------
   # overall
   c <- llk <- numeric(1)
   sample_path <- lapply(n_vary, dif_matrix, cols = J)
   trans <- rep(list(vector("list", m)), n_subj)
-
+  
   # gamma
   gamma_int_mle_pooled <- gamma_pooled_ll <- vector("list", m)
   gamma_c_int <- rep(list(matrix(, n_subj, (m-1))), m)
   gamma_mu_int_bar <- gamma_V_int <- vector("list", m)
   gamma_mu_prob_bar <- rep(list(numeric(m)), m)
   gamma_naccept <- matrix(0, n_subj, m)
-
+  
   # emiss
   cond_y <- lapply(rep(n_dep, n_subj), nested_list, m = m)
   cond_y_pooled <- rep(list(rep(list(NULL),n_dep)), m)
-
-    # categorical
-    emiss_int_mle_pooled <- emiss_pooled_ll <- rep(list(vector("list", n_cat)), m)
-    emiss_c_int <- rep(list(lapply(q_emiss[which_cat] - 1, dif_matrix, rows = n_subj)), m)
-    emiss_mu_int_bar <- emiss_V_int <- rep(list(vector("list", n_cat)), m)
-    emiss_mu_prob_bar <- rep(list(lapply(q_emiss[which_cat], dif_vector)), m)
-    emiss_naccept <- rep(list(matrix(0, n_subj, m)), n_cat)
-
-    # continuous
-    emiss_c_mu <- rep(list(rep(list(matrix(,ncol = 1, nrow = n_subj)),n_cont)), m)
-    for(i in 1:m){
-     for(q in 1:n_cont){
-       ind <- which_cont[q]
-       emiss_c_mu[[i]][[q]][,1] <- start_val[[1 + ind]][i,1]
-     }
+  
+  # categorical
+  emiss_int_mle_pooled <- emiss_pooled_ll <- rep(list(vector("list", n_cat)), m)
+  emiss_c_int <- rep(list(lapply(q_emiss[which_cat] - 1, dif_matrix, rows = n_subj)), m)
+  emiss_mu_int_bar <- emiss_V_int <- rep(list(vector("list", n_cat)), m)
+  emiss_mu_prob_bar <- rep(list(lapply(q_emiss[which_cat], dif_vector)), m)
+  emiss_naccept <- rep(list(matrix(0, n_subj, m)), n_cat)
+  
+  # continuous
+  emiss_c_mu <- rep(list(rep(list(matrix(,ncol = 1, nrow = n_subj)),n_cont)), m)
+  for(i in 1:m){
+    for(q in 1:n_cont){
+      ind <- which_cont[q]
+      emiss_c_mu[[i]][[q]][,1] <- start_val[[1 + ind]][i,1]
     }
-    emiss_V_mu <- emiss_c_mu_bar <- emiss_c_V <- rep(list(rep(list(NULL),n_cont)), m)
-    ss_subj <- n_cond_y <- numeric(n_subj)
-    label_switch <- matrix(0, ncol = n_cont, nrow = m, dimnames = list(c(paste("mu_S", 1:m, sep = "")), dep_labels[which_cont]))
-
-
+  }
+  emiss_V_mu <- emiss_c_mu_bar <- emiss_c_V <- rep(list(rep(list(NULL),n_cont)), m)
+  ss_subj <- n_cond_y <- numeric(n_subj)
+  label_switch <- matrix(0, ncol = n_cont, nrow = m, dimnames = list(c(paste("mu_S", 1:m, sep = "")), dep_labels[which_cont]))
+  
+  
   # Define objects that are returned from mcmc algorithm ----------------------------
   # Define object for subject specific posterior density, put start values on first rows
   if(length(start_val) != n_dep + 1){
     stop("The number of elements in the list start_val should be equal to 1 + the number of dependent variables,
          and should not contain nested lists (i.e., lists within lists)")
   }
-
+  
   PD              <- list(trans_prob = matrix(, nrow = J, ncol = m * m),
                           cat_emiss = if(n_cat > 0){
                             matrix(, nrow = J, ncol = sum(m * q_emiss))} else {
@@ -755,7 +756,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
   }
   colnames(PD$log_likl) <-  "LL"
   PD_subj				<- rep(list(PD), n_subj)
-
+  
   # Define object for population posterior density (probabilities and regression coefficients parameterization )
   gamma_prob_bar		<- matrix(, nrow = J, ncol = (m * m))
   colnames(gamma_prob_bar) <- paste("S", rep(1:m, each = m), "toS", rep(1:m, m), sep = "")
@@ -773,8 +774,8 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
   }
   # Define object for subject specific posterior density (regression coefficients parameterization )
   gamma_int_subj			<- rep(list(gamma_int_bar), n_subj)
-
-# continuous
+  
+  # continuous
   if(n_cont > 0){
     emiss_mu_bar			<- rep(list(matrix(, ncol = m, nrow = J, dimnames = list(NULL, c(paste("mu_", 1:m, sep = ""))))), n_cont)
     names(emiss_mu_bar) <- dep_labels[which_cont]
@@ -805,7 +806,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       emiss_cont_cov_bar <- "No covariates where used to predict the continious emission probabilities"
     }
   }
-
+  
   # categorical
   if(n_cat > 0){
     emiss_prob_bar			<- lapply(q_emiss[which_cat] * m, dif_matrix, rows = J)
@@ -841,13 +842,13 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
     # Define object for subject specific posterior density (regression coefficients parameterization )
     emiss_int_subj			<- rep(list(emiss_int_bar), n_subj)
   }
-
+  
   # Put starting values in place for fist run forward algorithm
-
+  
   emiss				<- rep(list(start_val[2:(n_dep + 1)]), n_subj)
   gamma 			<- rep(start_val[1], n_subj)
   delta 			<- rep(list(solve(t(diag(m) - gamma[[1]] + 1), rep(1, m))), n_subj)
-
+  
   # Start analysis --------------------------------------------
   # Run the MCMC algorithm
   itime <- proc.time()[3]
@@ -856,7 +857,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
     pb <- utils::txtProgressBar(min = 2, max = J, style = 3)
   }
   for (iter in 2 : J){
-
+    
     # For each subject, obtain sampled state sequence with subject individual parameters ----------
     for(s in 1:n_subj){
       # Run forward algorithm, obtain subject specific forward proababilities and log likelihood
@@ -866,13 +867,22 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       c             <- max(forward[[2]][, subj_data[[s]]$n])
       llk           <- c + log(sum(exp(forward[[2]][, subj_data[[s]]$n] - c)))
       PD_subj[[s]]$log_likl[iter, 1] <- llk
-
+      
       # Using the forward probabilites, sample the state sequence in a backward manner.
       # In addition, saves state transitions in trans, and conditional observations within states in cond_y
       trans[[s]]					                  <- vector("list", m)
       sample_path[[s]][n_vary[[s]], iter] 	<- sample(1:m, 1, prob = c(alpha[, n_vary[[s]]]))
       for(t in (subj_data[[s]]$n - 1):1){
         sample_path[[s]][t,iter] 	              <- sample(1:m, 1, prob = (alpha[, t] * gamma[[s]][,sample_path[[s]][t + 1, iter]]))
+      }
+      if(iter >= start_relabeling){
+        pivot <- apply(sample_path[[s]][,(burn_in+1):(iter-1)], 1, function(row){
+          counts <- tabulate(row, nbins = m)
+          which.max(counts)
+        })
+        sample_path[[s]][,iter] <- ecr(pivot, sample_path[[s]][,iter], m)
+      }
+      for(t in (subj_data[[s]]$n - 1):1){
         trans[[s]][[sample_path[[s]][t,iter]]]	<- c(trans[[s]][[sample_path[[s]][t, iter]]], sample_path[[s]][t + 1, iter])
       }
       for (i in 1:m){
@@ -880,16 +890,17 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
           trans[[s]][[i]] <- rev(trans[[s]][[i]])
         }
         for(q in 1:n_dep){
-          cond_y[[s]][[i]][[q]] <- na.omit(c(subj_data[[s]]$y[sample_path[[s]][, iter] == i, q]))
+          cond_y[[s]][[q]][[i]] <- na.omit(c(subj_data[[s]]$y[sample_path[[s]][, iter] == i, q]))
         }
       }
     }
+    
     # The remainder of the mcmc algorithm is state specific
     for(i in 1:m){
-
+      
       # Obtain MLE of the covariance matrices and log likelihood of gamma and emiss at subject and population level -----------------
       # used to scale the propasal distribution of the RW Metropolis sampler
-
+      
       # population level, transition matrix
       trans_pooled			  <- factor(c(unlist(sapply(trans, "[[", i)), c(1:m)))
       gamma_mle_pooled		<- optim(gamma_int_mle0, llmnl_int, Obs = trans_pooled,
@@ -897,11 +908,11 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
                                  control = list(fnscale = -1))
       gamma_int_mle_pooled[[i]]  <- gamma_mle_pooled$par
       gamma_pooled_ll[[i]]			<- gamma_mle_pooled$value
-
+      
       # subject level, transition matrix
       for (s in 1:n_subj){
         wgt 				<- subj_data[[s]]$n / n_total
-
+        
         # subject level, transition matrix
         gamma_out					<- optim(gamma_int_mle_pooled[[i]], llmnl_int_frac, Obs = c(trans[[s]][[i]], c(1:m)),
                                n_cat = m, pooled_likel = gamma_pooled_ll[[i]], w = gamma_w, wgt = wgt,
@@ -916,18 +927,18 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
           subj_data[[s]]$gamma_int_mle[i,] <- rep(0, m - 1)
           subj_data[[s]]$gamma_mhess[(1 + (i - 1) * (m - 1)):((m - 1) + (i - 1) * (m - 1)), ]	<- diag(m-1)
         }
-
+        
         # if this is first iteration, use MLE for current values RW metropolis sampler
         if (iter == 2){
           gamma_c_int[[i]][s,]		<- gamma_out$par
         }
       }
-
+      
       # emission probabilities, seperate for each dependent variable, only for CATEGORICAL dependent variables
       if(n_cat > 0){
         for(q in 1:n_cat){
           ind <- which_cat[q]
-
+          
           # population level
           cond_y_pooled					      <- numeric()
           ### MOET OOK ECHT BETER KUNNEN, eerst # cond_y_pooled				<- unlist(sapply(cond_y, "[[", m))
@@ -939,7 +950,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
                                      control = list(fnscale = -1))
           emiss_int_mle_pooled[[i]][[q]]  <- emiss_mle_pooled$par
           emiss_pooled_ll[[i]][[q]]				<- emiss_mle_pooled$value
-
+          
           # subject level
           for (s in 1:n_subj){
             emiss_out				<- optim(emiss_int_mle_pooled[[i]][[q]], llmnl_int_frac, Obs = c(cond_y[[s]][[i]][[q]], c(1:q_emiss[q])),
@@ -962,7 +973,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
           }
         }
       }
-
+      
       # Sample pouplaton values for gamma and conditional probabilities using Gibbs sampler -----------
       # gamma_mu0_n and gamma_mu_int_bar are matrices, with the number of rows equal to the number of covariates, and ncol equal to number of intercepts estimated
       gamma_mu0_n           <- solve(t(xx[[1]]) %*% xx[[1]] + gamma_K0)  %*% (t(xx[[1]]) %*% gamma_c_int[[i]] + gamma_K0 %*% gamma_mu0[[i]])
@@ -971,31 +982,31 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       gamma_mu_int_bar[[i]] <- gamma_mu0_n + solve(chol(t(xx[[1]]) %*% xx[[1]] + gamma_K0)) %*% matrix(rnorm((m - 1) * nx[1]), nrow = nx[1]) %*% t(solve(chol(solve(gamma_V_int[[i]]))))
       gamma_exp_int				  <- matrix(exp(c(0, gamma_mu_int_bar[[i]][1,] )), nrow  = 1)
       gamma_mu_prob_bar[[i]] 	<- gamma_exp_int / as.vector(gamma_exp_int %*% c(rep(1,(m))))
-
+      
       # Sample subject values for transition matrix -----------
       for (s in 1:n_subj){
         # Sample subject values for gamma using RW Metropolis sampler   ---------
         gamma_candcov_comb 			<- chol2inv(chol(subj_data[[s]]$gamma_mhess[(1 + (i - 1) * (m - 1)):((m - 1) + (i - 1) * (m - 1)), ] + chol2inv(chol(gamma_V_int[[i]]))))
         gamma_RWout					    <- mnl_RW_once(int1 = gamma_c_int[[i]][s,], Obs = trans[[s]][[i]], n_cat = m, mu_int_bar1 = c(t(gamma_mu_int_bar[[i]]) %*% xx[[1]][s,]), V_int1 = gamma_V_int[[i]], scalar = gamma_scalar, candcov1 = gamma_candcov_comb)
-        gamma[[s]][i,]  	      <- PD_subj[[s]]$trans_prob[iter, ((i-1) * m + 1) : ((i-1) * m + m)] <- (gamma_RWout$prob + 0.0001)/(1+0.0001 * m)
+        gamma[[s]][i,]  	      <- PD_subj[[s]]$trans_prob[iter, ((i-1) * m + 1) : ((i-1) * m + m)] <- gamma_RWout$prob
         gamma_naccept[s, i]			<- gamma_naccept[s, i] + gamma_RWout$accept
         gamma_c_int[[i]][s,]		<- gamma_RWout$draw_int
         gamma_int_subj[[s]][iter, (1 + (i - 1) * (m - 1)):((m - 1) + (i - 1) * (m - 1))] <- gamma_c_int[[i]][s,]
-
+        
         if(i == m){
           delta[[s]] 		<- solve(t(diag(m) - gamma[[s]] + 1), rep(1, m))
         }
       }
-
+      
       # sample parameters for the emission distributions
       # note: the posterior is thus one of a Bayesian linear regression because of the optional regression parameters
       if(n_cat > 0){
         # categorical dependent variables:
         start <- c(0, q_emiss[which_cat] * m)
-
+        
         for(q in 1:n_cat){
           ind <- which_cat[q]
-
+          
           # population parameters
           emiss_mu0_n                 <- solve(t(xx[[1 + ind]]) %*% xx[[1 + ind]] + emiss_cat_K0[[q]]) %*% (t(xx[[1 + ind]]) %*% emiss_c_int[[i]][[q]] + emiss_cat_K0[[q]] %*% emiss_cat_mu0[[q]][[i]])
           emiss_V_n                   <- emiss_cat_V[[q]] + t(emiss_c_int[[i]][[q]] - xx[[1 + ind]] %*% emiss_mu0_n) %*% (emiss_c_int[[i]][[q]] - xx[[1 + ind]] %*% emiss_mu0_n) + t(emiss_mu0_n - emiss_cat_mu0[[q]][[i]]) %*% emiss_cat_K0[[q]] %*% (emiss_mu0_n - emiss_cat_mu0[[q]][[i]])
@@ -1003,7 +1014,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
           emiss_mu_int_bar[[i]][[q]]	 <- emiss_mu0_n + solve(chol(t(xx[[1 + ind]]) %*% xx[[1 + ind]] + emiss_cat_K0[[q]])) %*% matrix(rnorm((q_emiss[ind] - 1) * nx[1 + ind]), nrow = nx[1 + ind]) %*% t(solve(chol(solve(emiss_V_int[[i]][[q]]))))
           emiss_exp_int				       <- matrix(exp(c(0, emiss_mu_int_bar[[i]][[q]][1, ])), nrow  = 1)
           emiss_mu_prob_bar[[i]][[q]] <- emiss_exp_int / as.vector(emiss_exp_int %*% c(rep(1, (q_emiss[ind]))))
-
+          
           # subject level parameters sampled using RW Metropolis sampler
           for (s in 1:n_subj){
             emiss_candcov_comb		     <- chol2inv(chol(subj_data[[s]]$emiss_mhess[[q]][(1 + (i - 1) * (q_emiss[ind] - 1)):((q_emiss[ind] - 1) + (i - 1) * (q_emiss[ind] - 1)), ] + chol2inv(chol(emiss_V_int[[i]][[q]]))))
@@ -1017,18 +1028,18 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       }
       if(n_cont > 0){
         # continuous dependent variables:
-
+        
         for(q in 1:n_cont){
           ind <- which_cont[q]
-
+          
           # population parameters
           # mean (and regression parameters if covariates) of the Normal emission distribution
           # and it's variance (so the variance between the subject specific means)
           emiss_mu0_n                    <- solve(t(xx[[1 + ind]]) %*% xx[[1 + ind]] + emiss_cont_K0[[q]]) %*% (t(xx[[1 + ind]]) %*% emiss_c_mu[[i]][[q]] + emiss_cont_K0[[q]] %*% emiss_cont_mu0[[q]][,i])
           emiss_a_mu_n                   <- (emiss_cont_K0[[q]] + n_subj) / 2
           emiss_b_mu_n                   <- (emiss_cont_nu[[q]] * emiss_cont_V[[q]][i]) / 2 + (t(emiss_c_mu[[i]][[q]]) %*% emiss_c_mu[[i]][[q]] +
-                                                                                       t(emiss_cont_mu0[[q]][,i]) %*% emiss_cont_K0[[q]] %*% emiss_cont_mu0[[q]][,i] -
-                                                                                       t(emiss_mu0_n) %*% (t(xx[[1 + ind]]) %*% xx[[1 + ind]] + emiss_cont_K0[[q]]) %*% emiss_mu0_n) / 2
+                                                                                                 t(emiss_cont_mu0[[q]][,i]) %*% emiss_cont_K0[[q]] %*% emiss_cont_mu0[[q]][,i] -
+                                                                                                 t(emiss_mu0_n) %*% (t(xx[[1 + ind]]) %*% xx[[1 + ind]] + emiss_cont_K0[[q]]) %*% emiss_mu0_n) / 2
           emiss_V_mu[[i]][[q]]       <- solve(rgamma(1, shape = emiss_a_mu_n, rate = emiss_b_mu_n))
           if(all(dim(emiss_V_mu[[i]][[q]]) == c(1,1))){ # CHECH THIS
             # emiss_c_mu_bar[[i]][[q]]	  <- emiss_mu0_n + rnorm(1 + nx[1 + q] - 1, mean = 0, sd = sqrt(as.numeric(emiss_V_mu[[i]][[q]]) * solve(t(xx[[1 + q]]) %*% xx[[1 + q]] + emiss_K0[[q]]))) # This step may produce negative values which is not acceptable
@@ -1044,7 +1055,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
           #
           #   }
           # }
-
+          
           # fixed variance of the continuous dependent emission distributions
           for (s in 1:n_subj){
             ss_subj[s] <- t(matrix(cond_y[[s]][[i]][[ind]] - emiss_c_mu[[i]][[q]][s,1], nrow = 1) %*%
@@ -1054,7 +1065,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
           emiss_a_resvar_n <- sum(n_cond_y) / 2 + emiss_cont_a0[[q]][i]
           emiss_b_resvar_n <- (sum(ss_subj) + 2 * emiss_cont_b0[[q]][i]) / 2
           emiss_c_V[[i]][[q]] <- emiss_var_bar[[q]][iter, i] <- solve(rgamma(1, shape = emiss_a_resvar_n, rate = emiss_b_resvar_n))
-
+          
           ### sampling subject specific means for the emission distributions, assuming known mean and var, see Lynch p. 244
           emiss_c_V_subj    <- (emiss_V_mu[[i]][[q]] * emiss_c_V[[i]][[q]]) / (2 * emiss_V_mu[[i]][[q]] + emiss_c_V[[i]][[q]])
           for (s in 1:n_subj){
@@ -1066,14 +1077,14 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
         }
       }
     }
-
+    
     # End of MCMC iteration, save output values --------
     gamma_int_bar[iter, ]				   	<- unlist(lapply(gamma_mu_int_bar, "[",1,))
     if(nx[1] > 1){
       gamma_cov_bar[iter, ]      	<- unlist(lapply(gamma_mu_int_bar, "[",-1,))
     }
     gamma_prob_bar[iter,]			<- unlist(gamma_mu_prob_bar)
-
+    
     if(n_cont > 0){
       for(q in 1:n_cont){
         ind <- which_cont[q]
@@ -1103,7 +1114,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
         emiss_prob_bar[[q]][iter,]	<- as.vector(unlist(sapply(emiss_mu_prob_bar, "[[", q)))
       }
     }
-
+    
     if(show_progress == TRUE){
       utils::setTxtProgressBar(pb, iter)
     }
@@ -1112,7 +1123,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
     close(pb)
   }
   label_switch <- round(label_switch / J * 100, 2)
-
+  
   # End of function, return output values --------
   ctime = proc.time()[3]
   message(paste("Total time elapsed (hh:mm:ss):", hms(ctime-itime)))

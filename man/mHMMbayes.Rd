@@ -2,6 +2,7 @@
 % Please edit documentation in R/mHMMbayes.R
 \docType{package}
 \name{mHMMbayes}
+\alias{mHMMbayes-package}
 \alias{mHMMbayes}
 \title{mHMMbayes: multilevel hidden Markov models using Bayesian estimation.}
 \description{
@@ -60,3 +61,20 @@ sequence for each subject, given the data and the subject specific parameter
 estimates. The function does this by utilizing the Viterbi algorithm.
 }
 
+\seealso{
+Useful links:
+\itemize{
+  \item \url{https://github.com/emmekeaarts/mHMMbayes}
+  \item Report bugs at \url{https://github.com/emmekeaarts/mHMMbayes/issues}
+}
+
+}
+\author{
+\strong{Maintainer}: Emmeke Aarts \email{e.aarts@uu.nl}
+
+Other contributors:
+\itemize{
+  \item Sebastian Mildiner Moraga [contributor]
+}
+
+}
