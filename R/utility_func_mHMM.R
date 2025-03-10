@@ -54,9 +54,21 @@ hms <- function(t){
         sep = ":")
 }
 
+#' @keywords internal
 ecr <- function(pivot, alloc, m){
   n <- length(pivot)
   conf_mat <- table(factor(alloc, levels = 1:m), factor(pivot, levels = 1:m))
+  cost_mat <- conf_mat%*%(1-diag(m))
+  permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
+  x_repermute <- permutation[alloc]
+  return(x_repermute)
+}
+
+#' @keywords internal
+ecr_observed <- function(pivot, alloc, m, observed){
+  n <- length(pivot)
+  alloc_use <- alloc[observed]
+  conf_mat <- table(factor(alloc_use, levels = 1:m), factor(pivot, levels = 1:m))
   cost_mat <- conf_mat%*%(1-diag(m))
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
   x_repermute <- permutation[alloc]

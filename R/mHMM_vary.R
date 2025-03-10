@@ -852,8 +852,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
   # Run the MCMC algorithm
   itime <- proc.time()[3]
   if(show_progress == TRUE){
-    cat("Progress of the Bayesian mHMM algorithm:", "\n")
-    pb <- utils::txtProgressBar(min = 2, max = J, style = 3)
+    cli::cli_progress_bar("Running MCMC algorithm", total = ceiling((J-1)/10))
   }
   for (iter in 2 : J){
 
@@ -1104,12 +1103,12 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       }
     }
 
-    if(show_progress == TRUE){
-      utils::setTxtProgressBar(pb, iter)
+    if(show_progress == TRUE & (iter-1) %% 10 == 0){
+      cli::cli_progress_update()
     }
   }
   if(show_progress == TRUE){
-    close(pb)
+    cli::cli_progress_done()
   }
   label_switch <- round(label_switch / J * 100, 2)
 
