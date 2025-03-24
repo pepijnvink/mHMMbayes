@@ -125,6 +125,8 @@
 #'   \code{\link{pd_RW_emiss_cat}} or \code{\link{pd_RW_emiss_count}}. Only
 #'   applicable in case of categorical and count observations.
 #' @param relabel_train Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.
+#' @param relabel_type String specifying type of relabeling to perform. If "observed", the relabeling is only based on instances with observed data. If "all", the relabeling is based on all instances.
+#' @param relabel_iter Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
 #'
 #' @return \code{mHMM} returns an object of class \code{mHMM}, which has
 #'   \code{print} and \code{summary} methods to see the results.
@@ -546,7 +548,7 @@
 #'
 
 mHMM_relabel <- function(s_data, data_distr = 'categorical', gen, xx = NULL, start_val, mcmc, return_path = FALSE, show_progress = TRUE,
-                 gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100){
+                 gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_type = "all", relabel_iter = 1){
   # Initialize data -----------------------------------
   # dependent variable(s), sample size, dimensions gamma and conditional distribution
   if(sum(objects(gen) %in% "m") != 1 | sum(objects(gen) %in% "n_dep") != 1){
@@ -895,7 +897,7 @@ mHMM_relabel <- function(s_data, data_distr = 'categorical', gen, xx = NULL, sta
 
 
   # Define objects that are returned from mcmc algorithm ----------------------------
-  # Define object for subject specific posterior density, put start values on first row
+  # Define object for subject specific posterior density, put start values on first row. Includes information on relabeling.
   if(length(start_val) != n_dep + 1 | depth(start_val) != 1){
     stop("The number of elements in the list start_val should be equal to 1 + the number of dependent variables,
          and should not contain nested lists (i.e., lists within lists)")
@@ -913,7 +915,8 @@ mHMM_relabel <- function(s_data, data_distr = 'categorical', gen, xx = NULL, sta
                             matrix(NA_real_, nrow = J, ncol = (n_dep * m))} else {
                               NULL
                             },
-                          log_likl = matrix(NA_real_, nrow = J, ncol = 1))
+                          log_likl = matrix(NA_real_, nrow = J, ncol = 1),
+                          repermuted = rep(NA, times = J))
   if(dim(start_val[[1]])[1] != m | dim(start_val[[1]])[2] != m){
     stop(paste0("Start values for the transition probability matrix contained in the first element of 'start_val' should be an m x m matrix, here ", m, " by ", m,"."))
   }
@@ -1091,8 +1094,13 @@ mHMM_relabel <- function(s_data, data_distr = 'categorical', gen, xx = NULL, sta
   }
   gamma 			<- rep(start_val[1], n_subj)
   delta 			<- rep(list(solve(t(diag(m) - gamma[[1]] + 1), rep(1, m))), n_subj)
-
-
+  if(relabel_type == "observed"){
+    is_observed <- vector("list", n_subj) # initialize matrix with indices of observed values
+    unique_ID <- unique(s_data[,1])
+    for(s in 1:n_subj){
+      is_observed[[s]] <- which(!apply(is.na(s_data[s_data[,1] == unique_ID[s], -1, drop = FALSE]), 1, any))
+    }
+  }
 
   # Start analysis --------------------------------------------
   # Run the MCMC algorithm
@@ -1147,12 +1155,24 @@ mHMM_relabel <- function(s_data, data_distr = 'categorical', gen, xx = NULL, sta
       for(t in (subj_data[[s]]$n_t - 1):1){
         sample_path[[s]][t,iter] 	              <- sample(1:m, 1, prob = (alpha[, t] * gamma[[s]][,sample_path[[s]][t + 1, iter]]))
       }
-      if(iter >= start_relabeling){
-        pivot <- apply(sample_path[[s]][,(burn_in+1):(iter-1)], 1, function(row){
-          counts <- tabulate(row, nbins = m)
-          which.max(counts)
-        })
-        sample_path[[s]][,iter] <- ecr(pivot, sample_path[[s]][,iter], m)
+      if(iter >= start_relabeling & (((iter - start_relabeling) %% relabel_freq) == 0)){
+        if(relabel_type == "all"){
+          pivot <- apply(sample_path[[s]][,(burn_in+1):(iter-1)], 1, function(row){
+            counts <- tabulate(row, nbins = m)
+            which.max(counts)
+          })
+          relab <- ecr(pivot, sample_path[[s]][,iter], m)
+          sample_path[[s]][,iter] <- relab$sequence
+          PD_subj[[s]]$repermuted[iter] <- relab$switched
+        } else if(relabel_type == "observed"){
+          pivot <- apply(sample_path[[s]][is_observed[[s]],(burn_in+1):(iter-1)], 1, function(row){
+            counts <- tabulate(row, nbins = m)
+            which.max(counts)
+          })
+          relab <- ecr_observed(pivot, sample_path[[s]][,iter], is_observed[[s]], m)
+          sample_path[[s]][,iter] <- relab$sequence
+          PD_subj[[s]]$repermuted[iter] <- relab$switched
+        }
       }
       for(t in (subj_data[[s]]$n_t - 1):1){
         trans[[s]][[sample_path[[s]][t,iter]]]	<- c(trans[[s]][[sample_path[[s]][t, iter]]], sample_path[[s]][t + 1, iter])

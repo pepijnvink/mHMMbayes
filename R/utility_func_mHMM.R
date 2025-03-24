@@ -101,8 +101,9 @@ ecr <- function(pivot, alloc, m){
   conf_mat <- table(factor(alloc, levels = 1:m), factor(pivot, levels = 1:m))
   cost_mat <- conf_mat%*%(1-diag(m))
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
+  is_switched <- !(all.equal(permutation, 1:m))
   x_repermute <- permutation[alloc]
-  return(x_repermute)
+  return(list(switched = is_switched, repermuted = x_permute))
 }
 
 #' @keywords internal
@@ -113,6 +114,19 @@ ecr2 <- function(pivot, alloc, m){
   cost_mat <- conf_mat%*%(1-diag(m))
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
   return(permutation)
+}
+
+#' @keywords internal
+# Use ecr algorithm
+ecr_observed <- function(pivot, alloc, observed, m){
+  alloc_observed <- alloc[observed]
+  n <- length(pivot)
+  conf_mat <- table(factor(alloc_observed, levels = 1:m), factor(pivot, levels = 1:m))
+  cost_mat <- conf_mat%*%(1-diag(m))
+  permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
+  is_switched <- !(all.equal(permutation, 1:m))
+  x_repermute <- permutation[alloc]
+  return(list(switched = is_switched, sequence = x_permute))
 }
 
 #' @keywords internal
