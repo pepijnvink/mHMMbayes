@@ -98,7 +98,7 @@ logvar_to_var <- function(logmu, logvar){
 # Use ecr algorithm
 ecr <- function(pivot, alloc, m){
   n <- length(pivot)
-  conf_mat <- table(factor(alloc, levels = 1:m), factor(pivot, levels = 1:m))
+  conf_mat <- table(factor(alloc, levels = 1:m), factor(pivot, levels = 1:m)) # confusion matrix
   cost_mat <- conf_mat%*%(1-diag(m))
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
   is_switched <- !(all.equal(permutation, 1:m))
@@ -121,7 +121,7 @@ ecr2 <- function(pivot, alloc, m){
 ecr_observed <- function(pivot, alloc, observed, m){
   alloc_observed <- alloc[observed]
   n <- length(pivot)
-  conf_mat <- table(factor(alloc_observed, levels = 1:m), factor(pivot, levels = 1:m))
+  conf_mat <- table(factor(alloc_observed, levels = 1:m), factor(pivot, levels = 1:m)) # confusion matrix
   cost_mat <- conf_mat%*%(1-diag(m))
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
   is_switched <- !(all.equal(permutation, 1:m))
@@ -140,5 +140,6 @@ pra <- function(pivot, parameters, m){
   }
   solution <- lpSolve::lp.assign(align_mat, direction = "max")$solution
   param_relabel <- parameters%*%solution
-  return(param_relabel)
+  is_switched <- !(all.equal(diag(solution), rep(1,m)))
+  return(list(switched = is_switched, parameter = param_relabel))
 }

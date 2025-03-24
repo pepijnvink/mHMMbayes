@@ -125,6 +125,7 @@
 #'   \code{\link{pd_RW_emiss_cat}} or \code{\link{pd_RW_emiss_count}}. Only
 #'   applicable in case of categorical and count observations.
 #' @param relabel_train Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.
+#' @param relabel_iter Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
 #'
 #' @return \code{mHMM} returns an object of class \code{mHMM}, which has
 #'   \code{print} and \code{summary} methods to see the results.
@@ -546,7 +547,7 @@
 #'
 
 mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL, start_val, mcmc, return_path = FALSE, show_progress = TRUE,
-                         gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100){
+                         gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_iter = 1){
   # Initialize data -----------------------------------
   # dependent variable(s), sample size, dimensions gamma and conditional distribution
   if(sum(objects(gen) %in% "m") != 1 | sum(objects(gen) %in% "n_dep") != 1){
@@ -913,7 +914,8 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
                             matrix(NA_real_, nrow = J, ncol = (n_dep * m))} else {
                               NULL
                             },
-                          log_likl = matrix(NA_real_, nrow = J, ncol = 1))
+                          log_likl = matrix(NA_real_, nrow = J, ncol = 1),
+                          repermuted = matrix(NA, nrow = J, ncol = n_dep))
   if(dim(start_val[[1]])[1] != m | dim(start_val[[1]])[2] != m){
     stop(paste0("Start values for the transition probability matrix contained in the first element of 'start_val' should be an m x m matrix, here ", m, " by ", m,"."))
   }
@@ -942,6 +944,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
       PD$cont_emiss[1, ((q-1) * m + 1):(q * m)] <- start_val[[q + 1]][,1]
       PD$cont_emiss[1,  (n_dep * m + (q-1) * m + 1):(n_dep * m + q * m)] <- start_val[[q + 1]][,2]^2
     }
+    colnames(PD$repermuted) <- paste("dep", 1:n_dep, sep = "")
   } else if(data_distr == 'count'){
     if(sum(sapply(start_val, dim)[1, 2:(n_dep+1)] != rep(m, n_dep)) > 0){
       stop("Start values for the emission distribuitons for continuous observations contained in 'start_val' should be one matrix per dependent variable, each with m rows and 1 column")
@@ -1380,15 +1383,16 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
       }
     }
 
-    if(iter >= start_relabeling){
+    if(iter >= start_relabeling  & (((iter - start_relabeling) %% relabel_freq) == 0)){
       for(s in 1:n_subj){
         for(q in 1:n_dep){
           if(data_distr == "continuous"){
             pivot <- apply(PD_subj[[s]]$cont_emiss[((burn_in+1):(iter-1)), (((q - 1) * m + 1):((q - 1) * m + m))], 2, median)
             relab <- pra(pivot, PD_subj[[s]]$cont_emiss[iter, (((q - 1) * m + 1):((q - 1) * m + m))], m)
-            PD_subj[[s]]$cont_emiss[iter, (((q - 1) * m + 1):((q - 1) * m + m))] <-  relab
+            PD_subj[[s]]$cont_emiss[iter, (((q - 1) * m + 1):((q - 1) * m + m))] <-  relab$parameter
+            PD_subj[[s]]$repermuted[iter, q] <- relab$switched
             for(i in 1:m){
-              emiss_c_mu[[i]][[q]][s,1] <- relab[i]
+              emiss_c_mu[[i]][[q]][s,1] <- relab$parameter[i]
             }
           }
         }
