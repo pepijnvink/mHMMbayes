@@ -105,10 +105,26 @@ ecr <- function(pivot, alloc, m){
   return(x_repermute)
 }
 
+#' @keywords internal
+# Use ecr algorithm
 ecr2 <- function(pivot, alloc, m){
   n <- length(pivot)
   conf_mat <- table(factor(alloc, levels = 1:m), factor(pivot, levels = 1:m))
   cost_mat <- conf_mat%*%(1-diag(m))
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
   return(permutation)
+}
+
+#' @keywords internal
+# Use PRA algorithm
+pra <- function(pivot, parameters, m){
+  align_mat <- matrix(NA, m, m)
+  for(i in 1:m){
+    for(j in 1:m){
+      align_mat[i,j] <- pivot[i]*parameters[j]
+    }
+  }
+  solution <- lpSolve::lp.assign(align_mat, direction = "max")$solution
+  param_relabel <- parameters%*%solution
+  return(param_relabel)
 }
