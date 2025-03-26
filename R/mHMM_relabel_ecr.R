@@ -1,6 +1,6 @@
 #' Multilevel hidden  Markov model using Bayesian estimation
 #'
-#' \code{mHMM_relabel} fits a multilevel (also known as mixed or random effects) hidden
+#' \code{mHMM_relabel_ecr} fits a multilevel (also known as mixed or random effects) hidden
 #' Markov model (HMM) to intense longitudinal data with categorical, continuous
 #' (i.e., normally distributed), or count (i.e., Poisson distributed)
 #' observations of multiple subjects using Bayesian estimation, and creates an
@@ -547,7 +547,7 @@
 #'
 #'
 
-mHMM_relabel <- function(s_data, data_distr = 'categorical', gen, xx = NULL, start_val, mcmc, return_path = FALSE, show_progress = TRUE,
+mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL, start_val, mcmc, return_path = FALSE, show_progress = TRUE,
                  gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_type = "all", relabel_iter = 1){
   # Initialize data -----------------------------------
   # dependent variable(s), sample size, dimensions gamma and conditional distribution
