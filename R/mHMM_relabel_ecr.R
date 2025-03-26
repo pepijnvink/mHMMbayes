@@ -1516,7 +1516,7 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
   } else if(data_distr == 'count'){
     if(return_path == TRUE){
       out <- list(input = list(data_distr = data_distr, m = m, n_dep = n_dep, J = J,
-                               burn_in = burn_in, n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels),
+                               burn_in = burn_in, n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_iter = relabel_iter),
                   PD_subj = PD_subj,
                   gamma_int_subj = gamma_int_subj,
                   gamma_int_bar = gamma_int_bar,
