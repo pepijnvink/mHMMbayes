@@ -103,7 +103,7 @@ ecr <- function(pivot, alloc, m){
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
   is_switched <- !(all.equal(permutation, 1:m))
   x_repermute <- permutation[alloc]
-  return(list(switched = is_switched, repermuted = x_repermute))
+  return(list(switched = is_switched, sequence = x_repermute))
 }
 
 #' @keywords internal
