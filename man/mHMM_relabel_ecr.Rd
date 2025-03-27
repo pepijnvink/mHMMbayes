@@ -19,7 +19,7 @@ mHMM_relabel_ecr(
   emiss_sampler = NULL,
   relabel_train = 100,
   relabel_type = "all",
-  relabel_iter = 1
+  relabel_steps = 1
 )
 }
 \arguments{
@@ -136,7 +136,7 @@ applicable in case of categorical and count observations.}
 
 \item{relabel_type}{String specifying type of relabeling to perform. If "observed", the relabeling is only based on instances with observed data. If "all", the relabeling is based on all instances.}
 
-\item{relabel_iter}{Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.}
+\item{relabel_steps}{Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.}
 }
 \value{
 \code{mHMM} returns an object of class \code{mHMM}, which has

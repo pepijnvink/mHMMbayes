@@ -18,7 +18,7 @@ mHMM_relabel_pra(
   gamma_sampler = NULL,
   emiss_sampler = NULL,
   relabel_train = 100,
-  relabel_iter = 1
+  relabel_steps = 1
 )
 }
 \arguments{
@@ -133,7 +133,7 @@ applicable in case of categorical and count observations.}
 
 \item{relabel_train}{Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.}
 
-\item{relabel_iter}{Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.}
+\item{relabel_steps}{Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.}
 }
 \value{
 \code{mHMM} returns an object of class \code{mHMM}, which has

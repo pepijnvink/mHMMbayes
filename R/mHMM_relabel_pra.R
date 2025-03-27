@@ -125,7 +125,7 @@
 #'   \code{\link{pd_RW_emiss_cat}} or \code{\link{pd_RW_emiss_count}}. Only
 #'   applicable in case of categorical and count observations.
 #' @param relabel_train Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.
-#' @param relabel_iter Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
+#' @param relabel_steps Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
 #'
 #' @return \code{mHMM} returns an object of class \code{mHMM}, which has
 #'   \code{print} and \code{summary} methods to see the results.
@@ -547,7 +547,7 @@
 #'
 
 mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL, start_val, mcmc, return_path = FALSE, show_progress = TRUE,
-                         gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_iter = 1){
+                         gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_steps = 1){
   # Initialize data -----------------------------------
   # dependent variable(s), sample size, dimensions gamma and conditional distribution
   if(sum(objects(gen) %in% "m") != 1 | sum(objects(gen) %in% "n_dep") != 1){
@@ -1383,7 +1383,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
       }
     }
 
-    if(iter >= start_relabeling  & (((iter - start_relabeling) %% relabel_freq) == 0)){
+    if(iter >= start_relabeling  & (((iter - start_relabeling) %% relabel_steps) == 0)){
       for(s in 1:n_subj){
         for(q in 1:n_dep){
           if(data_distr == "continuous"){
@@ -1506,7 +1506,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
   } else if(data_distr == 'count'){
     if(return_path == TRUE){
       out <- list(input = list(data_distr = data_distr, m = m, n_dep = n_dep, J = J,
-                               burn_in = burn_in, n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_iter = relabel_iter),
+                               burn_in = burn_in, n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_steps = relabel_steps),
                   PD_subj = PD_subj,
                   gamma_int_subj = gamma_int_subj,
                   gamma_int_bar = gamma_int_bar,
@@ -1523,7 +1523,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
                   sample_path = sample_path)
     } else {
       out <- list(input = list(data_distr = data_distr, m = m, n_dep = n_dep, J = J,
-                               burn_in = burn_in, n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_iter = relabel_iter),
+                               burn_in = burn_in, n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_steps = relabel_steps),
                   PD_subj = PD_subj,
                   gamma_int_subj = gamma_int_subj,
                   gamma_int_bar = gamma_int_bar,
