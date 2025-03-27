@@ -124,7 +124,7 @@ ecr_observed <- function(pivot, alloc, observed, m){
   conf_mat <- table(factor(alloc_observed, levels = 1:m), factor(pivot, levels = 1:m)) # confusion matrix
   cost_mat <- conf_mat%*%(1-diag(m))
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
-  is_switched <- !(all.equal(permutation, 1:m))
+  is_switched <- !(identical(permutation, 1:m))
   x_repermute <- permutation[alloc]
   return(list(switched = is_switched, sequence = x_repermute))
 }
@@ -140,6 +140,6 @@ pra <- function(pivot, parameters, m){
   }
   solution <- lpSolve::lp.assign(align_mat, direction = "max")$solution
   param_relabel <- parameters%*%solution
-  print(solution)
-  return(list(parameter = param_relabel, solution = solution))
+  is_switched <- !(all.equal(diag(solution), rep(1,m)))
+  return(list(switched = is_switched, parameter = param_relabel))
 }
