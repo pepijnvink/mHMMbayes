@@ -126,7 +126,7 @@ ecr_observed <- function(pivot, alloc, observed, m){
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
   is_switched <- !(all.equal(permutation, 1:m))
   x_repermute <- permutation[alloc]
-  return(list(switched = is_switched, sequence = x_permute))
+  return(list(switched = is_switched, sequence = x_repermute))
 }
 
 #' @keywords internal
