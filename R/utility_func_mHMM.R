@@ -140,5 +140,6 @@ pra <- function(pivot, parameters, m){
   }
   solution <- lpSolve::lp.assign(align_mat, direction = "max")$solution
   param_relabel <- parameters%*%solution
+  print(solution)
   return(list(parameter = param_relabel, solution = solution))
 }
