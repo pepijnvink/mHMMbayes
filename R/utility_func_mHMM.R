@@ -139,7 +139,7 @@ pra <- function(pivot, parameters, m){
     }
   }
   solution <- lpSolve::lp.assign(align_mat, direction = "max")$solution
-  param_relabel <- parameters%*%solution
+  param_relabel <- parameters%*%t(solution)
   is_switched <- !(identical(diag(solution), rep(1,m)))
   return(list(switched = is_switched, parameter = param_relabel))
 }
