@@ -1460,6 +1460,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
 
   # End of function, return output values --------
   ctime = proc.time()[3]
+  elaps_time <- ctime-itime
   message(paste("Total time elapsed (hh:mm:ss):", hms(ctime-itime)))
   if(data_distr == 'categorical'){
     if(return_path == TRUE){
@@ -1540,5 +1541,6 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
     }
     class(out) <- append(class(out), c("mHMM","count"))
   }
+  out$input$elaps_time <- elaps_time
   return(out)
 }
