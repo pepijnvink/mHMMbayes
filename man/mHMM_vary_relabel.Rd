@@ -20,7 +20,8 @@ mHMM_vary_relabel(
   emiss_sampler = NULL,
   gamma_hyp_prior = NULL,
   gamma_sampler = NULL,
-  relabel_train = 100
+  relabel_train = 100,
+  relabel = "all"
 )
 }
 \arguments{
@@ -277,6 +278,8 @@ over all subjects) in the fractional likelihood.}}
  of the arguments of \code{gamma_hyp_prior}.}
 
 \item{relabel_train}{Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.}
+
+\item{relabel}{String specifying type of relabeling to perform. Takes "all" for the full state sequence or "observed" for the state sequence corresponding to observations.}
 }
 \value{
 \code{mHMM_cont} returns an object of class \code{mHMM_cont}, which has
