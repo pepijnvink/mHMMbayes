@@ -651,7 +651,7 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
   # Initialize mcmc argumetns
   J 				<- mcmc$J
   burn_in		<- mcmc$burn_in
-  start_relabeling <- relabel_train + burn_in + 2
+  start_relabeling <- relabel_train + burn_in + 1
 
   # Initalize priors and hyper priors --------------------------------
   # Initialize gamma sampler
@@ -956,7 +956,9 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
   }
   colnames(PD$log_likl) <-  "LL"
   PD_subj				<- rep(list(PD), n_subj)
-
+  for(i in 1:n_subj){ # add frequency table for local decoding
+    PD_subj[[i]]$sampled_state_freq <- matrix(0, nrow = n_vary[i], ncol = m)
+  }
   # Define object for population posterior density (probabilities and regression coefficients parameterization )
   # gamma
   gamma_prob_bar		<- matrix(NA_real_, nrow = J, ncol = (m * m))
@@ -1155,24 +1157,24 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
       for(t in (subj_data[[s]]$n_t - 1):1){
         sample_path[[s]][t,iter] 	              <- sample(1:m, 1, prob = (alpha[, t] * gamma[[s]][,sample_path[[s]][t + 1, iter]]))
       }
-      if(iter >= start_relabeling & (((iter - start_relabeling) %% relabel_steps) == 0)){
-        if(relabel_type == "all"){
-          pivot <- apply(sample_path[[s]][,(burn_in+1):(iter-1)], 1, function(row){
-            counts <- tabulate(row, nbins = m)
-            which.max(counts)
-          })
-          relab <- ecr(pivot, sample_path[[s]][,iter], m)
-          sample_path[[s]][,iter] <- relab$sequence
-          PD_subj[[s]]$repermuted[iter] <- relab$switched
-        } else if(relabel_type == "observed"){
-          pivot <- apply(sample_path[[s]][is_observed[[s]],(burn_in+1):(iter-1)], 1, function(row){
-            counts <- tabulate(row, nbins = m)
-            which.max(counts)
-          })
-          relab <- ecr_observed(pivot, sample_path[[s]][,iter], is_observed[[s]], m)
-          sample_path[[s]][,iter] <- relab$sequence
-          PD_subj[[s]]$repermuted[iter] <- relab$switched
+      samp_seq <- sample_path[[s]][,iter]
+      if(iter >= start_relabeling & (((iter - start_relabeling) %% relabel_steps) == 0)){ ## relabel sampled sequence
+        if(relabel_type == "all"){ # if also relabel unobserved
+          pivot <- max.col(PD_subj[[s]]$sampled_state_freq, ties.method = "random") # create pivot
+          relab <- ecr(pivot, samp_seq, m) # check permutation
+          samp_seq <- relab$sequence # relabel sampled sequence
+          sample_path[[s]][,iter] <- samp_seq # save relabeled sequence
+          PD_subj[[s]]$repermuted[iter] <- relab$switched # indicator if relabeled
+        } else if(relabel_type == "observed"){ # if only relabel points with observed data
+          pivot <- max.col(PD_subj[[s]]$sampled_state_freq[is_observed[[s]],], ties.method = "random") # create pivot using local decoding
+          relab <- ecr_observed(pivot, sample_path[[s]][,iter], is_observed[[s]], m) # check permutation
+          samp_seq <- relab$sequence # relabel sampled sequence
+          sample_path[[s]][,iter] <- samp_seq # save relabeled sequence
+          PD_subj[[s]]$repermuted[iter] <- relab$switched # indicator if relabeled
         }
+      }
+      if(iter > burn_in){
+        PD_subj[[s]]$sampled_state_freq[cbind(1:n_vary[[s]], samp_seq)] <- PD_subj[[s]]$sampled_state_freq[cbind(1:n_vary[[s]], samp_seq)] + 1 # update local decoding
       }
       for(t in (subj_data[[s]]$n_t - 1):1){
         trans[[s]][[sample_path[[s]][t,iter]]]	<- c(trans[[s]][[sample_path[[s]][t, iter]]], sample_path[[s]][t + 1, iter])

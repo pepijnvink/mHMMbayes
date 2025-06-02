@@ -650,7 +650,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
   # Initialize mcmc argumetns
   J 				<- mcmc$J
   burn_in		<- mcmc$burn_in
-  start_relabeling <- relabel_train + burn_in + 2
+  start_relabeling <- relabel_train + burn_in + 1
 
   # Initalize priors and hyper priors --------------------------------
   # Initialize gamma sampler
@@ -915,7 +915,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
                               NULL
                             },
                           log_likl = matrix(NA_real_, nrow = J, ncol = 1),
-                          repermuted = matrix(NA, nrow = J, ncol = n_dep))
+                          repermuted = rep(NA, times = J))
   if(dim(start_val[[1]])[1] != m | dim(start_val[[1]])[2] != m){
     stop(paste0("Start values for the transition probability matrix contained in the first element of 'start_val' should be an m x m matrix, here ", m, " by ", m,"."))
   }
@@ -944,7 +944,6 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
       PD$cont_emiss[1, ((q-1) * m + 1):(q * m)] <- start_val[[q + 1]][,1]
       PD$cont_emiss[1,  (n_dep * m + (q-1) * m + 1):(n_dep * m + q * m)] <- start_val[[q + 1]][,2]^2
     }
-    colnames(PD$repermuted) <- paste("dep", 1:n_dep, sep = "")
   } else if(data_distr == 'count'){
     if(sum(sapply(start_val, dim)[1, 2:(n_dep+1)] != rep(m, n_dep)) > 0){
       stop("Start values for the emission distribuitons for continuous observations contained in 'start_val' should be one matrix per dependent variable, each with m rows and 1 column")
@@ -1105,7 +1104,6 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
     pb <- utils::txtProgressBar(min = 2, max = J, style = 3)
   }
   for (iter in 2 : J){
-
     # For each subject, obtain sampled state sequence with subject individual parameters ----------
     for(s in 1:n_subj){
       # Run forward algorithm, obtain subject specific forward probabilities and log likelihood
@@ -1383,22 +1381,48 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
       }
     }
 
+    # create pivots
+    if(iter == (start_relabeling - 1)){
+      for(s in 1:n_subj){
+        PD_subj[[s]]$gamma_mean_int <- apply(gamma_int_subj[[s]][((burn_in+1):iter),], 2, mean)
+        PD_subj[[s]]$emiss_mean <- apply(PD_subj[[s]]$cont_emiss[((burn_in+1):iter), 1:(n_dep*m)], 2, mean)
+      }
+    }
+    # relabel states
     if(iter >= start_relabeling  & (((iter - start_relabeling) %% relabel_steps) == 0)){
       for(s in 1:n_subj){
-        for(q in 1:n_dep){
-          if(data_distr == "continuous"){
-            pivot <- apply(PD_subj[[s]]$cont_emiss[((burn_in+1):(iter-1)), (((q - 1) * m + 1):((q - 1) * m + m))], 2, median)
-            relab <- pra(pivot, PD_subj[[s]]$cont_emiss[iter, (((q - 1) * m + 1):((q - 1) * m + m))], m)
-            PD_subj[[s]]$cont_emiss[iter, (((q - 1) * m + 1):((q - 1) * m + m))] <-  relab$parameter
-            PD_subj[[s]]$repermuted[iter, q] <- relab$switched
-            for(i in 1:m){
-              emiss_c_mu[[i]][[q]][s,1] <- relab$parameter[i]
-            }
+        pivot_emiss <- matrix(PD_subj[[s]]$emiss_mean, nrow = m, byrow = FALSE)
+        pivot_gamma <- int_to_prob_noround(matrix(PD_subj[[s]]$gamma_mean_int, nrow = m, byrow = TRUE))
+        relab <- pra(pivot_emiss = pivot_emiss,
+                     pivot_gamma = pivot_gamma,
+                     parameters_emiss = matrix(PD_subj[[s]]$cont_emiss[iter, 1:(n_dep*m)], nrow = m, byrow = FALSE),
+                     parameters_gamma = int_to_prob_noround(matrix(gamma_int_subj[[s]][iter,], nrow = m, byrow = TRUE)),
+                     m = m,
+                     n_dep = n_dep)
+        PD_subj[[s]]$repermuted[iter] <- relab$switched
+        gamma_relabeled <- relab$gamma_relabeled
+        emiss_relabeled <- relab$emiss_relabeled
+        PD_subj[[s]]$cont_emiss[iter, 1:(n_dep*m)] <- c(emiss_relabeled)
+        PD_subj[[s]]$trans_prob[iter, ] <- c(t(gamma_relabeled))
+        gamma_relabeled_int <- prob_to_int(gamma_relabeled)
+        gamma_int_subj[[s]][iter,] <- c(t(gamma_relabeled_int))
+        for(i in 1:m){
+          gamma_c_int[[i]][s,] <- gamma_relabeled_int[i,]
+          for(q in 1:n_dep){
+            emiss[[s]][[q]][i,1] <- emiss_relabeled[i, q]
+            emiss_c_mu[[i]][[q]][s,1] <- emiss_relabeled[i, q]
           }
         }
       }
     }
-
+    # update pivot for relabeling
+    if(iter >= start_relabeling){
+      for(s in 1:n_subj){
+        denom <- iter - burn_in + 1
+        PD_subj[[s]]$gamma_mean_int <- PD_subj[[s]]$gamma_mean_int + (gamma_int_subj[[s]][iter,] - PD_subj[[s]]$gamma_mean_int) / denom
+        PD_subj[[s]]$emiss_mean <- PD_subj[[s]]$emiss_mean + (PD_subj[[s]]$cont_emiss[iter, 1:(n_dep*m)] - PD_subj[[s]]$emiss_mean) / denom
+        }
+      }
     # End of 1 MCMC iteration, save output values --------
     gamma_int_bar[iter, ]				   	<- unlist(lapply(gamma_mu_int_bar, "[",1,))
     if(nx[1] > 1){

@@ -131,15 +131,32 @@ ecr_observed <- function(pivot, alloc, observed, m){
 
 #' @keywords internal
 # Use PRA algorithm
-pra <- function(pivot, parameters, m){
-  align_mat <- matrix(NA, m, m)
+pra <- function(pivot_emiss, pivot_gamma, parameters_emiss, parameters_gamma, m, n_dep){
+  align_mat <- matrix(0, m, m)
   for(i in 1:m){
     for(j in 1:m){
-      align_mat[i,j] <- pivot[i]*parameters[j]
+      align_mat[i, j] <- sum(pivot_emiss[i,]*parameters_emiss[j,]) + (pivot_gamma[i, i]*parameters_gamma[j,j]) # only use self-transitions for relabeling
     }
   }
   solution <- lpSolve::lp.assign(align_mat, direction = "max")$solution
-  param_relabel <- parameters%*%t(solution)
-  is_switched <- !(identical(diag(solution), rep(1,m)))
-  return(list(switched = is_switched, parameter = param_relabel))
+  permute <- (1:m)%*%t(solution)
+  permute <- round(c(permute), 0)
+  param_emiss_relabel <- parameters_emiss[permute, ]
+  param_gamma_relabel <- parameters_gamma[permute, permute]
+  is_switched <- !(identical(permute, 1:m))
+  return(list(switched = is_switched, emiss_relabeled = param_emiss_relabel, gamma_relabeled = param_gamma_relabel))
+}
+
+#' @keywords internal
+# int_to_prob() without rounding
+int_to_prob_noround <- function(int_matrix) {
+  if(!is.matrix(int_matrix)){
+    stop("int_matrix should be a matrix")
+  }
+  prob_matrix <- matrix(nrow = nrow(int_matrix), ncol = ncol(int_matrix) + 1)
+  for(r in 1:nrow(int_matrix)){
+    exp_int_matrix 	<- matrix(exp(c(0, int_matrix[r,])), nrow  = 1)
+    prob_matrix[r,] <- exp_int_matrix / as.vector(exp_int_matrix %*% c(rep(1, (dim(exp_int_matrix)[2]))))
+  }
+  return(prob_matrix)
 }
