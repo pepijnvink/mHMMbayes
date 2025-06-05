@@ -143,7 +143,7 @@ pra <- function(pivot_emiss, pivot_gamma, parameters_emiss, parameters_gamma, m,
   permute <- round(c(permute), 0)
   param_emiss_relabel <- parameters_emiss[permute, ]
   param_gamma_relabel <- parameters_gamma[permute, permute]
-  is_switched <- !(all.equal(permute, 1:m))
+  is_switched <- !(isTRUE(all.equal(permute, 1:m)))
   return(list(switched = is_switched, emiss_relabeled = param_emiss_relabel, gamma_relabeled = param_gamma_relabel))
 }
 
