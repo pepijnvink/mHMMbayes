@@ -124,7 +124,7 @@ ecr_observed <- function(pivot, alloc, observed, m){
   conf_mat <- table(factor(alloc_observed, levels = 1:m), factor(pivot, levels = 1:m)) # confusion matrix
   cost_mat <- conf_mat%*%(1-diag(m))
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
-  is_switched <- !(identical(permutation, 1:m))
+  is_switched <- !(all.equal(permutation, 1:m))
   x_repermute <- permutation[alloc]
   return(list(switched = is_switched, sequence = x_repermute))
 }
@@ -135,7 +135,7 @@ pra <- function(pivot_emiss, pivot_gamma, parameters_emiss, parameters_gamma, m,
   align_mat <- matrix(0, m, m)
   for(i in 1:m){
     for(j in 1:m){
-      align_mat[i, j] <- sum(pivot_emiss[i,]*parameters_emiss[j,]) + (pivot_gamma[i, i]*parameters_gamma[j,j]) # only use self-transitions for relabeling
+      align_mat[i, j] <- sum(pivot_emiss[i,]*parameters_emiss[j,]) # only use emissions for relabeling
     }
   }
   solution <- lpSolve::lp.assign(align_mat, direction = "max")$solution
@@ -143,7 +143,7 @@ pra <- function(pivot_emiss, pivot_gamma, parameters_emiss, parameters_gamma, m,
   permute <- round(c(permute), 0)
   param_emiss_relabel <- parameters_emiss[permute, ]
   param_gamma_relabel <- parameters_gamma[permute, permute]
-  is_switched <- !(identical(permute, 1:m))
+  is_switched <- !(all.equal(permute, 1:m))
   return(list(switched = is_switched, emiss_relabeled = param_emiss_relabel, gamma_relabeled = param_gamma_relabel))
 }
 
