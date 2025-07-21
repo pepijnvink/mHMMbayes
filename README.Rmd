@@ -12,6 +12,9 @@ knitr::opts_chunk$set(
 )
 ```
 
+<!-- badges: start -->
+  [![R-CMD-check](https://github.com/emmekeaarts/mHMMbayes/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/emmekeaarts/mHMMbayes/actions/workflows/R-CMD-check.yaml)
+  <!-- badges: end -->
 
 # mHMMbayes
 
@@ -154,6 +157,9 @@ summary(out_3st_cont_sim)
 # obtaining the transition probability matrix gamma and the emission distribution 
 # at the group and subject level 
 obtain_gamma(out_3st_cont_sim, level = 'group')
+obtain_emiss(out_3st_cont_sim, level = 'group')
+
+obtain_gamma(out_3st_cont_sim, level = 'subject')
 obtain_emiss(out_3st_cont_sim, level = 'subject')
 
 # Inferring the most likely state at each point in time
