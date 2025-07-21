@@ -124,14 +124,14 @@ ecr_observed <- function(pivot, alloc, observed, m){
   conf_mat <- table(factor(alloc_observed, levels = 1:m), factor(pivot, levels = 1:m)) # confusion matrix
   cost_mat <- conf_mat%*%(1-diag(m))
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
-  is_switched <- !(all.equal(permutation, 1:m))
+  is_switched <- !(isTRUE(all.equal(permutation, 1:m)))
   x_repermute <- permutation[alloc]
   return(list(switched = is_switched, sequence = x_repermute))
 }
 
 #' @keywords internal
 # Use PRA algorithm
-pra <- function(pivot_emiss, pivot_gamma, parameters_emiss, parameters_gamma, m, n_dep){
+pra <- function(pivot_emiss, parameters_emiss, parameters_gamma, m, n_dep){
   align_mat <- matrix(0, m, m)
   for(i in 1:m){
     for(j in 1:m){

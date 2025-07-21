@@ -1384,7 +1384,6 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
     # create pivots
     if(iter == (start_relabeling - 1)){
       for(s in 1:n_subj){
-        PD_subj[[s]]$gamma_mean_int <- apply(gamma_int_subj[[s]][((burn_in+1):iter),], 2, mean)
         PD_subj[[s]]$emiss_mean <- apply(PD_subj[[s]]$cont_emiss[((burn_in+1):iter), 1:(n_dep*m)], 2, mean)
       }
     }
@@ -1392,9 +1391,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
     if(iter >= start_relabeling  & (((iter - start_relabeling) %% relabel_steps) == 0)){
       for(s in 1:n_subj){
         pivot_emiss <- matrix(PD_subj[[s]]$emiss_mean, nrow = m, byrow = FALSE)
-        pivot_gamma <- int_to_prob_noround(matrix(PD_subj[[s]]$gamma_mean_int, nrow = m, byrow = TRUE))
         relab <- pra(pivot_emiss = pivot_emiss,
-                     pivot_gamma = pivot_gamma,
                      parameters_emiss = matrix(PD_subj[[s]]$cont_emiss[iter, 1:(n_dep*m)], nrow = m, byrow = FALSE),
                      parameters_gamma = int_to_prob_noround(matrix(gamma_int_subj[[s]][iter,], nrow = m, byrow = TRUE)),
                      m = m,
