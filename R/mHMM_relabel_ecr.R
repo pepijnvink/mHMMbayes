@@ -125,6 +125,7 @@
 #'   \code{\link{pd_RW_emiss_cat}} or \code{\link{pd_RW_emiss_count}}. Only
 #'   applicable in case of categorical and count observations.
 #' @param relabel_train Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.
+#' @param relabel_burnin First number of iterations to ignore for the training iterations of the relabeling algorithm.
 #' @param relabel_type String specifying type of relabeling to perform. If "observed", the relabeling is only based on instances with observed data. If "all", the relabeling is based on all instances.
 #' @param relabel_steps Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
 #'
@@ -651,7 +652,7 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
   # Initialize mcmc argumetns
   J 				<- mcmc$J
   burn_in		<- mcmc$burn_in
-  start_relabeling <- relabel_train + burn_in + 1
+  start_relabeling <- relabel_train + relabel_burnin + 1
 
   # Initalize priors and hyper priors --------------------------------
   # Initialize gamma sampler
@@ -1173,7 +1174,7 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
           PD_subj[[s]]$repermuted[iter] <- relab$switched # indicator if relabeled
         }
       }
-      if(iter > burn_in){
+      if(iter > relabel_burnin){
         PD_subj[[s]]$sampled_state_freq[cbind(1:n_vary[[s]], samp_seq)] <- PD_subj[[s]]$sampled_state_freq[cbind(1:n_vary[[s]], samp_seq)] + 1 # update local decoding
       }
       for(t in (subj_data[[s]]$n_t - 1):1){

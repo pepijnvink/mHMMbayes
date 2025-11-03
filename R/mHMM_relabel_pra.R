@@ -125,6 +125,7 @@
 #'   \code{\link{pd_RW_emiss_cat}} or \code{\link{pd_RW_emiss_count}}. Only
 #'   applicable in case of categorical and count observations.
 #' @param relabel_train Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.
+#' @param relabel_burnin First number of iterations to ignore for the training iterations of the relabeling algorithm.
 #' @param relabel_steps Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
 #'
 #' @return \code{mHMM} returns an object of class \code{mHMM}, which has
@@ -650,7 +651,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
   # Initialize mcmc argumetns
   J 				<- mcmc$J
   burn_in		<- mcmc$burn_in
-  start_relabeling <- relabel_train + burn_in + 1
+  start_relabeling <- relabel_train + relabel_burnin + 1
 
   # Initalize priors and hyper priors --------------------------------
   # Initialize gamma sampler
@@ -1384,7 +1385,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
     # create pivots
     if(iter == (start_relabeling - 1)){
       for(s in 1:n_subj){
-        PD_subj[[s]]$emiss_mean <- apply(PD_subj[[s]]$cont_emiss[((burn_in+1):iter), 1:(n_dep*m)], 2, mean)
+        PD_subj[[s]]$emiss_mean <- apply(PD_subj[[s]]$cont_emiss[((relabel_burnin+1):iter), 1:(n_dep*m)], 2, mean)
       }
     }
     # relabel states
@@ -1415,8 +1416,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
     # update pivot for relabeling
     if(iter >= start_relabeling){
       for(s in 1:n_subj){
-        denom <- iter - burn_in + 1
-        PD_subj[[s]]$gamma_mean_int <- PD_subj[[s]]$gamma_mean_int + (gamma_int_subj[[s]][iter,] - PD_subj[[s]]$gamma_mean_int) / denom
+        denom <- iter - relabel_burnin + 1
         PD_subj[[s]]$emiss_mean <- PD_subj[[s]]$emiss_mean + (PD_subj[[s]]$cont_emiss[iter, 1:(n_dep*m)] - PD_subj[[s]]$emiss_mean) / denom
         }
       }
