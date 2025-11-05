@@ -549,7 +549,7 @@
 #'
 
 mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL, start_val, mcmc, return_path = FALSE, show_progress = TRUE,
-                 gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_type = "observed", relabel_steps = 1){
+                 gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_type = "observed", relabel_steps = 1, relabel_burnin = 10){
   # Initialize data -----------------------------------
   # dependent variable(s), sample size, dimensions gamma and conditional distribution
   if(sum(objects(gen) %in% "m") != 1 | sum(objects(gen) %in% "n_dep") != 1){
