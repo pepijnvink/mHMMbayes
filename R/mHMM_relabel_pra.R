@@ -1416,7 +1416,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
     # update pivot for relabeling
     if(iter >= start_relabeling){
       for(s in 1:n_subj){
-        denom <- iter - relabel_burnin + 1
+        denom <- iter - relabel_burnin
         PD_subj[[s]]$emiss_mean <- PD_subj[[s]]$emiss_mean + (PD_subj[[s]]$cont_emiss[iter, 1:(n_dep*m)] - PD_subj[[s]]$emiss_mean) / denom
         }
       }
