@@ -9,8 +9,7 @@ Imports:
     stats,
     Rdpack,
     Rcpp,
-    RcppHungarian,
-    lpSolve
+    RcppHungarian
 Authors@R: c(person("Emmeke", "Aarts", email = "e.aarts@uu.nl",
                   role = c("aut", "cre")),
              person("Sebastian", "Mildiner Moraga", role = "aut"))      

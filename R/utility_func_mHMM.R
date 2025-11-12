@@ -97,23 +97,14 @@ logvar_to_var <- function(logmu, logvar){
 #' @keywords internal
 # Use ecr algorithm
 ecr <- function(pivot, alloc, m){
-  n <- length(pivot)
+  n <- length(pivot) #sequence length
   conf_mat <- table(factor(alloc, levels = 1:m), factor(pivot, levels = 1:m)) # confusion matrix
-  cost_mat <- conf_mat%*%(1-diag(m))
+  cost_mat <- max(conf_mat) - conf_mat # cost matrix to maximize
+  # run hungarian algorithm. output: vector length m. element i==j element indicates that if sampled state==i, it should be relabeled to state j
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
-  is_switched <- !(identical(permutation, 1:m))
-  x_repermute <- permutation[alloc]
+  is_switched <- !(identical(permutation, 1:m)) # check if relabeling happens
+  x_repermute <- permutation[alloc] # old state == i --> take the ith element in permutation
   return(list(switched = is_switched, sequence = x_repermute))
-}
-
-#' @keywords internal
-# Use ecr algorithm
-ecr2 <- function(pivot, alloc, m){
-  n <- length(pivot)
-  conf_mat <- table(factor(alloc, levels = 1:m), factor(pivot, levels = 1:m))
-  cost_mat <- conf_mat%*%(1-diag(m))
-  permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
-  return(permutation)
 }
 
 #' @keywords internal
@@ -122,10 +113,11 @@ ecr_observed <- function(pivot, alloc, observed, m){
   alloc_observed <- alloc[observed]
   n <- length(pivot)
   conf_mat <- table(factor(alloc_observed, levels = 1:m), factor(pivot, levels = 1:m)) # confusion matrix
-  cost_mat <- conf_mat%*%(1-diag(m))
+  cost_mat <- max(conf_mat) - conf_mat # cost matrix to maximize
+  # run hungarian algorithm. output: vector length m. element i==j element indicates that if sampled state==i, it should be relabeled to state j
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
-  is_switched <- !(isTRUE(all.equal(permutation, 1:m)))
-  x_repermute <- permutation[alloc]
+  is_switched <- !(identical(permutation, 1:m)) # check if relabeling happens
+  x_repermute <- permutation[alloc] # old state == i --> take the ith element in permutation
   return(list(switched = is_switched, sequence = x_repermute))
 }
 
@@ -133,14 +125,18 @@ ecr_observed <- function(pivot, alloc, observed, m){
 # Use PRA algorithm
 pra <- function(pivot_emiss, parameters_emiss, parameters_gamma, m, n_dep){
   align_mat <- matrix(0, m, m)
+
+  ## compute dot products (to maximize later). indicates overall similarity of reference state i with sampled parameter j
   for(i in 1:m){
     for(j in 1:m){
       align_mat[i, j] <- sum(pivot_emiss[i,]*parameters_emiss[j,]) # only use emissions for relabeling
     }
   }
-  solution <- lpSolve::lp.assign(align_mat, direction = "max")$solution
-  permute <- (1:m)%*%t(solution)
-  permute <- round(c(permute), 0)
+  ## transform to cost (needed by hungarian algorithm. also make all elements positive)
+  align_mat <- max(align_mat) - align_mat
+  ## compute allocations. output is vector of length m. If element i==j, the j'th sampled state parameters will correspond to state i
+  permute <- RcppHungarian::HungarianSolver(align_mat)$pairs[,2]
+  permute <- round(c(permute), 0) # due to potential rounding issues
   param_emiss_relabel <- parameters_emiss[permute, ]
   param_gamma_relabel <- parameters_gamma[permute, permute]
   is_switched <- !(isTRUE(all.equal(permute, 1:m)))
