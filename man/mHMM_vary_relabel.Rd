@@ -21,7 +21,8 @@ mHMM_vary_relabel(
   gamma_hyp_prior = NULL,
   gamma_sampler = NULL,
   relabel_train = 100,
-  relabel = "all"
+  relabel_burnin = 10,
+  relabel_type = "all"
 )
 }
 \arguments{
@@ -243,12 +244,20 @@ over all subjects) in the fractional likelihood.}}
  Metropolis sampler} in \code{vignette("estimation-mhmm")} for details.}
 
 \item{gamma_hyp_prior}{An optional list containing user specified parameters
- of the hyper-prior distribution on the multivariate normal distribution
- of the intercepts (and regression coefficients given that covariates are
- used) of the multinomial regression model of the transition probability
- matrix gamma. The hyper-prior of the mean intercepts is a multivariate
- Normal distribution, the hyper-prior of the covariance matrix between the
- set of (state specific) intercepts is an Inverse Wishart distribution.
+of the hyper-prior distribution on the multivariate normal distribution
+of the intercepts (and regression coefficients given that covariates are
+used) of the multinomial regression model of the transition probability
+matrix gamma. The hyper-prior of the mean intercepts is a multivariate
+Normal distribution, the hyper-prior of the covariance matrix between the
+set of (state specific) intercepts is an Inverse Wishart distribution.}
+
+\item{relabel_train}{Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.}
+
+\item{relabel_burnin}{First number of iterations to ignore for the training iterations of the relabeling algorithm.}
+
+\item{relabel_type}{String specifying type of relabeling to perform. If "observed", the relabeling is only based on instances with observed data. If "all", the relabeling is based on all instances.}
+
+\item{relabel_steps}{Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
 
  Hence, the list \code{gamma_hyp_prior} contains the following elements:
  \itemize{\item{\code{gamma_mu0}: a list containing m matrices; one matrix
@@ -276,8 +285,6 @@ over all subjects) in the fractional likelihood.}}
 
  See \emph{Details} below if covariates are used for changes in the settings
  of the arguments of \code{gamma_hyp_prior}.}
-
-\item{relabel_train}{Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.}
 
 \item{relabel}{String specifying type of relabeling to perform. Takes "all" for the full state sequence or "observed" for the state sequence corresponding to observations.}
 }

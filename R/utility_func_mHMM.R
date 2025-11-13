@@ -55,22 +55,28 @@ hms <- function(t){
 }
 
 #' @keywords internal
+# Use ecr algorithm
 ecr <- function(pivot, alloc, m){
-  n <- length(pivot)
-  conf_mat <- table(factor(alloc, levels = 1:m), factor(pivot, levels = 1:m))
-  cost_mat <- conf_mat%*%(1-diag(m))
+  n <- length(pivot) #sequence length
+  conf_mat <- table(factor(alloc, levels = 1:m), factor(pivot, levels = 1:m)) # confusion matrix
+  cost_mat <- max(conf_mat) - conf_mat # cost matrix to maximize
+  # run hungarian algorithm. output: vector length m. element i==j element indicates that if sampled state==i, it should be relabeled to state j
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
-  x_repermute <- permutation[alloc]
-  return(x_repermute)
+  is_switched <- !(identical(permutation, 1:m)) # check if relabeling happens
+  x_repermute <- permutation[alloc] # old state == i --> take the ith element in permutation
+  return(list(switched = is_switched, sequence = x_repermute))
 }
 
 #' @keywords internal
-ecr_observed <- function(pivot, alloc, m, observed){
+# Use ecr algorithm
+ecr_observed <- function(pivot, alloc, observed, m){
+  alloc_observed <- alloc[observed]
   n <- length(pivot)
-  alloc_use <- alloc[observed]
-  conf_mat <- table(factor(alloc_use, levels = 1:m), factor(pivot, levels = 1:m))
-  cost_mat <- conf_mat%*%(1-diag(m))
+  conf_mat <- table(factor(alloc_observed, levels = 1:m), factor(pivot, levels = 1:m)) # confusion matrix
+  cost_mat <- max(conf_mat) - conf_mat # cost matrix to maximize
+  # run hungarian algorithm. output: vector length m. element i==j element indicates that if sampled state==i, it should be relabeled to state j
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
-  x_repermute <- permutation[alloc]
-  return(x_repermute)
+  is_switched <- !(identical(permutation, 1:m)) # check if relabeling happens
+  x_repermute <- permutation[alloc] # old state == i --> take the ith element in permutation
+  return(list(switched = is_switched, sequence = x_repermute))
 }

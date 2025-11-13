@@ -125,6 +125,10 @@
 #'  matrix gamma. The hyper-prior of the mean intercepts is a multivariate
 #'  Normal distribution, the hyper-prior of the covariance matrix between the
 #'  set of (state specific) intercepts is an Inverse Wishart distribution.
+#' @param relabel_train Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.
+#' @param relabel_burnin First number of iterations to ignore for the training iterations of the relabeling algorithm.
+#' @param relabel_type String specifying type of relabeling to perform. If "observed", the relabeling is only based on instances with observed data. If "all", the relabeling is based on all instances.
+#' @param relabel_steps Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
 #'
 #'  Hence, the list \code{gamma_hyp_prior} contains the following elements:
 #'  \itemize{\item{\code{gamma_mu0}: a list containing m matrices; one matrix
@@ -477,7 +481,7 @@
 #'
 
 mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_hyp_prior, mcmc, return_path = FALSE, print_iter, show_progress = TRUE,
-                      emiss_cat_hyp_prior = NULL, emiss_sampler = NULL, gamma_hyp_prior = NULL, gamma_sampler = NULL, relabel_train  = 100, relabel = "all"){
+                      emiss_cat_hyp_prior = NULL, emiss_sampler = NULL, gamma_hyp_prior = NULL, gamma_sampler = NULL, relabel_train  = 100, relabel_burnin = 10, relabel_type = "all"){
 
   if(!missing(print_iter)){
     warning("The argument print_iter is depricated; please use show_progress instead to show the progress of the algorithm.")
@@ -502,8 +506,12 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
   }
   for(s in 1:n_subj){
     subj_data[[s]]$y <- as.matrix(s_data[s_data[,1] == id[s],][,-1], ncol = n_dep)
-    if(relabel == "observed"){
-      subj_data[[s]]$observed <- !apply(is.na(subj_data[[s]]$y), 1, any)
+  }
+  if(relabel_type == "observed"){
+    is_observed <- vector("list", n_subj) # initialize matrix with indices of observed values
+    unique_ID <- unique(s_data[,1])
+    for(s in 1:n_subj){
+      is_observed[[s]] <- which(!apply(is.na(s_data[s_data[,1] == unique_ID[s], -1, drop = FALSE]), 1, any))
     }
   }
   ypooled    <- n <- NULL
@@ -575,7 +583,7 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
   # Initialize mcmc argumetns
   J 				<- mcmc$J
   burn_in			<- mcmc$burn_in
-  start_relabeling <- relabel_train + burn_in + 2
+  start_relabeling <- relabel_train + relabel_burnin + 1
 
   # Initalize priors and hyper priors --------------------------------
   # Initialize gamma sampler
@@ -735,7 +743,8 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
                             matrix(, nrow = J, ncol = (n_cont * 2 * m))} else {
                               NULL
                             },
-                          log_likl = matrix(, nrow = J, ncol = 1))
+                          log_likl = matrix(, nrow = J, ncol = 1),
+                          repermuted = rep(NA, times = J))
   colnames(PD$trans_prob) 	<- paste("S", rep(1:m, each = m), "toS", rep(1:m, m), sep = "")
   PD$trans_prob[1, ] <- unlist(sapply(start_val, t))[1:(m*m)]
   if (n_cat > 0){
@@ -760,7 +769,9 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
   }
   colnames(PD$log_likl) <-  "LL"
   PD_subj				<- rep(list(PD), n_subj)
-
+  for(i in 1:n_subj){ # add frequency table for local decoding
+    PD_subj[[i]]$sampled_state_freq <- matrix(0, nrow = n_vary[i], ncol = m)
+  }
   # Define object for population posterior density (probabilities and regression coefficients parameterization )
   gamma_prob_bar		<- matrix(, nrow = J, ncol = (m * m))
   colnames(gamma_prob_bar) <- paste("S", rep(1:m, each = m), "toS", rep(1:m, m), sep = "")
@@ -878,20 +889,24 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
       for(t in (subj_data[[s]]$n - 1):1){
         sample_path[[s]][t,iter] 	              <- sample(1:m, 1, prob = (alpha[, t] * gamma[[s]][,sample_path[[s]][t + 1, iter]]))
       }
+      samp_seq <- sample_path[[s]][,iter]
       if(iter >= start_relabeling){
-        if(relabel == "all"){
-          pivot <- apply(sample_path[[s]][,(burn_in+1):(iter-1)], 1, function(row){
-            counts <- tabulate(row, nbins = m)
-            which.max(counts)
-          })
-          sample_path[[s]][,iter] <- ecr(pivot = pivot, alloc = sample_path[[s]][,iter], m = m)
-        } else if(relabel == "observed"){
-          pivot <- apply(sample_path[[s]][subj_data[[s]]$observed,(burn_in+1):(iter-1)], 1, function(row){
-            counts <- tabulate(row, nbins = m)
-            which.max(counts)
-          })
-          sample_path[[s]][,iter] <- ecr_observed(pivot = pivot, alloc = sample_path[[s]][,iter],m = m, observed = subj_data[[s]]$observed)
+        if(relabel_type == "all"){
+          pivot <- max.col(PD_subj[[s]]$sampled_state_freq, ties.method = "random") # create pivot
+          relab <- ecr(pivot, samp_seq, m) # check permutation
+          samp_seq <- relab$sequence # relabel sampled sequence
+          sample_path[[s]][,iter] <- samp_seq # save relabeled sequence
+          PD_subj[[s]]$repermuted[iter] <- relab$switched # indicator if relabeled
+        } else if(relabel_type == "observed"){
+          pivot <- max.col(PD_subj[[s]]$sampled_state_freq[is_observed[[s]],], ties.method = "random") # create pivot using local decoding
+          relab <- ecr_observed(pivot, sample_path[[s]][,iter], is_observed[[s]], m) # check permutation
+          samp_seq <- relab$sequence # relabel sampled sequence
+          sample_path[[s]][,iter] <- samp_seq # save relabeled sequence
+          PD_subj[[s]]$repermuted[iter] <- relab$switched # indicator if relabeled
         }
+      }
+      if(iter > relabel_burnin){
+        PD_subj[[s]]$sampled_state_freq[cbind(1:n_vary[[s]], samp_seq)] <- PD_subj[[s]]$sampled_state_freq[cbind(1:n_vary[[s]], samp_seq)] + 1 # update local decoding
       }
       for(t in (subj_data[[s]]$n - 1):1){
         trans[[s]][[sample_path[[s]][t,iter]]]	<- c(trans[[s]][[sample_path[[s]][t, iter]]], sample_path[[s]][t + 1, iter])
@@ -1140,7 +1155,7 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
   if(return_path == TRUE){
     if(n_cat * n_cont > 0){
       out <- list(input = list(m = m, n_dep = n_dep , q_emiss = q_emiss, J = J, burn_in = burn_in, data_distr = data_distr,
-                               n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels),
+                               n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_burnin = relabel_burnin, relabel_type = relabel_type),
                   PD_subj = PD_subj,
                   gamma_int_subj = gamma_int_subj, gamma_int_bar = gamma_int_bar, gamma_cov_bar = gamma_cov_bar,
                   gamma_prob_bar = gamma_prob_bar, gamma_naccept = gamma_naccept,
@@ -1151,7 +1166,7 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
                   sample_path = sample_path, label_switch = label_switch)
     } else if (n_cat == n_dep){
       out <- list(input = list(m = m, n_dep = n_dep, q_emiss = q_emiss, J = J,burn_in = burn_in,  data_distr = data_distr,
-                               n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels),
+                               n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_burnin = relabel_burnin, relabel_type = relabel_type),
                   PD_subj = PD_subj,
                   gamma_int_subj = gamma_int_subj, gamma_int_bar = gamma_int_bar, gamma_cov_bar = gamma_cov_bar,
                   gamma_prob_bar = gamma_prob_bar, gamma_naccept = gamma_naccept,
@@ -1161,7 +1176,7 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
                   sample_path = sample_path)
     } else if (n_cont == n_dep){
       out <- list(input = list(m = m, n_dep = n_dep, J = J,
-                               burn_in = burn_in, , data_distr = data_distr, n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels),
+                               burn_in = burn_in, , data_distr = data_distr, n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_burnin = relabel_burnin, relabel_type = relabel_type),
                   PD_subj = PD_subj, gamma_int_subj = gamma_int_subj,
                   gamma_int_bar = gamma_int_bar, gamma_cov_bar = gamma_cov_bar,
                   emiss_cont_cov_bar = emiss_cont_cov_bar, gamma_prob_bar = gamma_prob_bar,
@@ -1172,7 +1187,7 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
   } else {
     if(n_cat * n_cont > 0){
       out <- list(input = list(m = m, n_dep = n_dep , q_emiss = q_emiss, J = J, burn_in = burn_in, data_distr = data_distr,
-                               n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels),
+                               n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_burnin = relabel_burnin, relabel_type = relabel_type),
                   PD_subj = PD_subj,
                   gamma_int_subj = gamma_int_subj, gamma_int_bar = gamma_int_bar, gamma_cov_bar = gamma_cov_bar,
                   gamma_prob_bar = gamma_prob_bar, gamma_naccept = gamma_naccept,
@@ -1183,7 +1198,7 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
                   label_switch = label_switch)
     } else if (n_cat == n_dep){
       out <- list(input = list(m = m, n_dep = n_dep, q_emiss = q_emiss, J = J,burn_in = burn_in,  data_distr = data_distr,
-                               n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels),
+                               n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_burnin = relabel_burnin, relabel_type = relabel_type),
                   PD_subj = PD_subj,
                   gamma_int_subj = gamma_int_subj, gamma_int_bar = gamma_int_bar, gamma_cov_bar = gamma_cov_bar,
                   gamma_prob_bar = gamma_prob_bar, gamma_naccept = gamma_naccept,
@@ -1192,7 +1207,7 @@ mHMM_vary_relabel <- function(s_data, gen, data_distr, xx = NULL, start_val, emi
                   emiss_naccept = emiss_naccept)
     } else if (n_cont == n_dep){
       out <- list(input = list(m = m, n_dep = n_dep, J = J,
-                               burn_in = burn_in, data_distr = data_distr, n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels),
+                               burn_in = burn_in, data_distr = data_distr, n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels, relabel_train = relabel_train, relabel_burnin = relabel_burnin, relabel_type = relabel_type),
                   PD_subj = PD_subj, gamma_int_subj = gamma_int_subj,
                   gamma_int_bar = gamma_int_bar, gamma_cov_bar = gamma_cov_bar,
                   emiss_cont_cov_bar = emiss_cont_cov_bar, gamma_prob_bar = gamma_prob_bar,
