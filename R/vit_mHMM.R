@@ -197,8 +197,8 @@ vit_mHMM <- function(object, s_data, burn_in = NULL, return_state_prob = FALSE){
   for(s in 1:n_subj){
     emiss <- est_emiss[[s]] # extract emission parameters
     gamma <- est_gamma[[s]] # extract transition probabilities
-    delta <- solve(t(diag(m) - gamma + 1), rep(1, m)) ## initial probabilities
-    n_vary_s <- n_vary[1]
+    delta <- solve(t(diag(m) - gamma + 1), rep(1, m)) ## stationary probabilities
+    n_vary_s <- n_vary[s]
     # obtain emission probabilities
     prob_emiss <- all1(
       x = as.matrix(s_data[s_data[,1] == id[s], -1], ncol = n_dep),
@@ -208,7 +208,7 @@ vit_mHMM <- function(object, s_data, burn_in = NULL, return_state_prob = FALSE){
     )
     prob_emiss[is.na(prob_emiss)] <- 1 # impute 1 for missing values
 
-    ## start viterbi algorithm
+    ## start viterbi algorithm (based on Zucchini 2nd ed, p. 90)
     xi <- matrix(NA, n_vary_s, m)
     foo <- delta*prob_emiss[1,]
     xi[1,] <- foo/sum(foo)
@@ -224,7 +224,7 @@ vit_mHMM <- function(object, s_data, burn_in = NULL, return_state_prob = FALSE){
     state_seq[[s]][,1] <- id[s] # column with ids
     state_seq[[s]][,2] <- iv # save state probabilities
 
-    ## compute forward probabilities if requested
+    ## compute forward probabilities if requested --> maybe need to think about instead returning filtered probabilities, but would need the backward algorithm for this
     if(return_state_prob){
       if(data_distr == "categorical"){
         probs[[s]]    <- cat_mult_fw_r_to_cpp(x = as.matrix(s_data[s_data[,1] == id[s],][,-1], ncol = n_dep),
