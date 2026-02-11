@@ -698,6 +698,8 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
     emiss_int_mle_pooled <- emiss_pooled_ll <- rep(list(vector("list", n_cat)), m)
     emiss_c_int <- rep(list(lapply(q_emiss[which_cat] - 1, dif_matrix, rows = n_subj)), m)
     emiss_mu_int_bar <- emiss_V_int <- rep(list(vector("list", n_cat)), m)
+  emiss_V_int_bar <- lapply((q_emiss[which_cat]-1) * m, dif_matrix, rows = J)
+    names(emiss_V_int_bar) <- dep_labels[which_cat]
     emiss_mu_prob_bar <- rep(list(lapply(q_emiss[which_cat], dif_vector)), m)
     emiss_naccept <- rep(list(matrix(0, n_subj, m)), n_cat)
 
@@ -739,14 +741,18 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       PD_cat_emiss_names <- c(PD_cat_emiss_names, paste("dep", q, "_S", rep(1:m, each = q_emiss[q]), "_emiss", rep(1:q_emiss[q], m), sep = ""))
     }
     colnames(PD$cat_emiss)    <- PD_cat_emiss_names
+    emiss_V_idx <- vector("list", n_dep)
     for(q in 1:n_cat){
       ind <- which_cat[q]
+      colnames(emiss_V_int_bar[[q]]) <- paste("var_int_Emiss", 2:q_emiss[which_cat][q],"_S", rep(1:m, each = (q_emiss[which_cat][q] - 1)), sep = "")
+       emiss_V_idx[[q]] <- which(paste("var_int_Emiss", rep(2:q_emiss[which_cat][q], each = (q_emiss[which_cat][q]-1)),"_with_Emiss",rep(2:q_emiss[which_cat][q], (q_emiss[which_cat][q]-1)), "_S", rep(1:m, each = (q_emiss[which_cat][q] - 1)*(q_emiss[which_cat][q] - 1)), sep = "")
+                                %in% paste("var_int_Emiss", 2:q_emiss[which_cat][q],"_with_Emiss",2:q_emiss[which_cat][q], "_S", rep(1:m, each = (q_emiss[which_cat][q] - 1)), sep = ""))
       PD$cat_emiss[1, (sum(c(0,q_emiss)[1 : ind] * m) + 1):sum(q_emiss[1 : ind] * m)] <- as.vector(t(start_val[[ind + 1]]))
     }
   }
   if(n_cont > 0){
     colnames(PD$cont_emiss) <- c(paste("dep", rep(which_cont, each = m), "_S", rep(1:m), "_mu", sep = ""),
-                                 paste("dep", rep(which_cont, each = m), "_S", rep(1:m), "_fixvar", sep = ""))
+                                 paste("dep", rep(which_cont, each = m), "_S", rep(1:m), "_sd", sep = ""))
     for(q in 1:n_cont){
       ind <- which_cont[q]
       PD$cont_emiss[1, ((q-1) * m + 1):(q * m)] <- start_val[[ind + 1]][,1]
@@ -812,7 +818,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
     names(emiss_prob_bar) <- dep_labels[which_cat]
     for(q in 1:n_cat){
       ind <- which_cat[q]
-      colnames(emiss_prob_bar[[q]]) <- paste("S", rep(1:m, each = q_emiss[ind]), "_emiss", rep(1:q_emiss[ind], m), sep = "")
+      colnames(emiss_prob_bar[[q]]) <- paste("Emiss", rep(1:q_emiss[ind], m), "_S", rep(1:m, each = q_emiss[ind]), sep = "")
       start <- c(0, q_emiss[which_cat] * m)
       emiss_prob_bar[[q]][1,] <- PD$cat_emiss[1,(sum(start[1:q]) + 1):(sum(start[1:q]) + (m * q_emiss[q]))]
     }
@@ -820,7 +826,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
     names(emiss_int_bar) <- dep_labels[which_cat]
     for(q in 1:n_cat){
       ind <- which_cat[q]
-      colnames(emiss_int_bar[[q]]) <-  paste("S", rep(1:m, each = q_emiss[ind] - 1), "_int_emiss", rep(2:q_emiss[ind], m), sep = "")
+      colnames(emiss_int_bar[[q]]) <-  paste("int_Emiss", rep(2:q_emiss[ind], m), "_S", rep(1:m, each = q_emiss[ind] - 1), sep = "")
       emiss_int_bar[[q]][1,] <- as.vector(t(prob_to_int(matrix(emiss_prob_bar[[q]][1,], byrow = TRUE, ncol = q_emiss[ind], nrow = m))))
     }
     if(sum(c(nx[-1] - 1) * c(data_distr %in% 'categorical')) > 0){
@@ -852,7 +858,8 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
   # Run the MCMC algorithm
   itime <- proc.time()[3]
   if(show_progress == TRUE){
-    cli::cli_progress_bar("Running MCMC algorithm", total = ceiling((J-1)/10))
+    cat("Progress of the Bayesian mHMM algorithm:", "\n")
+    pb <- utils::txtProgressBar(min = 2, max = J, style = 3)
   }
   for (iter in 2 : J){
 
@@ -1094,6 +1101,9 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
         emiss_int_bar[[q]][iter, ]	<- as.vector(unlist(lapply(
           lapply(emiss_mu_int_bar, "[[", q), "[",1,)
         ))
+        emiss_V_int_bar[[q]][iter,] <- as.vector(unlist(lapply(
+          lapply(emiss_V_int, "[[", q), function(e) as.vector(t(e)) )
+        ))[emiss_V_idx[[q]]]
         if(nx[1 + ind] > 1){
           emiss_cat_cov_bar[[q]][iter, ]  <- as.vector(unlist(lapply(
             lapply(emiss_mu_int_bar, "[[", q), "[",-1,)
@@ -1103,12 +1113,12 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
       }
     }
 
-    if(show_progress == TRUE & (iter-1) %% 10 == 0){
-      cli::cli_progress_update()
+    if(show_progress == TRUE){
+      utils::setTxtProgressBar(pb, iter)
     }
   }
   if(show_progress == TRUE){
-    cli::cli_progress_done()
+    close(pb)
   }
   label_switch <- round(label_switch / J * 100, 2)
 
@@ -1121,11 +1131,11 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
                                n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels),
                   PD_subj = PD_subj,
                   gamma_int_subj = gamma_int_subj, gamma_int_bar = gamma_int_bar, gamma_cov_bar = gamma_cov_bar,
-                  gamma_prob_bar = gamma_prob_bar, gamma_naccept = gamma_naccept,
+                  gamma_prob_bar = gamma_prob_bar, gamma_naccept = gamma_naccept, emiss_V_int_bar = emiss_V_int_bar,
                   emiss_cont_cov_bar = emiss_cont_cov_bar, emiss_cat_cov_bar = emiss_cat_cov_bar, emiss_mu_bar = emiss_mu_bar,
                   emiss_int_subj = emiss_int_subj, emiss_int_bar = emiss_int_bar,
                   emiss_prob_bar = emiss_prob_bar, emiss_naccept = emiss_naccept,
-                  emiss_varmu_bar = emiss_varmu_bar, emiss_var_bar = emiss_var_bar,
+                  emiss_varmu_bar = emiss_varmu_bar, emiss_sd_bar = lapply(emiss_var_bar, sqrt),
                   sample_path = sample_path, label_switch = label_switch)
     } else if (n_cat == n_dep){
       out <- list(input = list(m = m, n_dep = n_dep, q_emiss = q_emiss, J = J,burn_in = burn_in,  data_distr = data_distr,
@@ -1144,7 +1154,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
                   gamma_int_bar = gamma_int_bar, gamma_cov_bar = gamma_cov_bar,
                   emiss_cont_cov_bar = emiss_cont_cov_bar, gamma_prob_bar = gamma_prob_bar,
                   emiss_mu_bar = emiss_mu_bar, gamma_naccept = gamma_naccept,
-                  emiss_varmu_bar = emiss_varmu_bar, emiss_var_bar = emiss_var_bar,
+                  emiss_varmu_bar = emiss_varmu_bar, emiss_sd_bar = lapply(emiss_var_bar, sqrt),
                   sample_path = sample_path, label_switch = label_switch)
     }
   } else {
@@ -1153,11 +1163,11 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
                                n_subj = n_subj, n_vary = n_vary, dep_labels = dep_labels),
                   PD_subj = PD_subj,
                   gamma_int_subj = gamma_int_subj, gamma_int_bar = gamma_int_bar, gamma_cov_bar = gamma_cov_bar,
-                  gamma_prob_bar = gamma_prob_bar, gamma_naccept = gamma_naccept,
+                  gamma_prob_bar = gamma_prob_bar, gamma_naccept = gamma_naccept, emiss_V_int_bar = emiss_V_int_bar,
                   emiss_cont_cov_bar = emiss_cont_cov_bar, emiss_cat_cov_bar = emiss_cat_cov_bar, emiss_mu_bar = emiss_mu_bar,
                   emiss_int_subj = emiss_int_subj, emiss_int_bar = emiss_int_bar,
                   emiss_prob_bar = emiss_prob_bar, emiss_naccept = emiss_naccept,
-                  emiss_varmu_bar = emiss_varmu_bar, emiss_var_bar = emiss_var_bar,
+                  emiss_varmu_bar = emiss_varmu_bar, emiss_sd_bar = lapply(emiss_var_bar, sqrt),
                   label_switch = label_switch)
     } else if (n_cat == n_dep){
       out <- list(input = list(m = m, n_dep = n_dep, q_emiss = q_emiss, J = J,burn_in = burn_in,  data_distr = data_distr,
@@ -1175,7 +1185,7 @@ mHMM_vary <- function(s_data, gen, data_distr, xx = NULL, start_val, emiss_cont_
                   gamma_int_bar = gamma_int_bar, gamma_cov_bar = gamma_cov_bar,
                   emiss_cont_cov_bar = emiss_cont_cov_bar, gamma_prob_bar = gamma_prob_bar,
                   emiss_mu_bar = emiss_mu_bar, gamma_naccept = gamma_naccept,
-                  emiss_varmu_bar = emiss_varmu_bar, emiss_var_bar = emiss_var_bar,
+                  emiss_varmu_bar = emiss_varmu_bar, emiss_sd_bar = lapply(emiss_var_bar, sqrt),
                   label_switch = label_switch)
     }
   }
