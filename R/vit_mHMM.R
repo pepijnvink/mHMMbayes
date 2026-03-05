@@ -193,26 +193,54 @@ vit_mHMM <- function(object, s_data, burn_in = NULL, return_state_prob = FALSE){
     }
   }
 
-  est_gamma <- obtain_gamma(object, level = "subject")
+  est_gamma <- obtain_gamma(object, level = "subject", burn_in = burn_in)
   for(s in 1:n_subj){
-    emiss   <- est_emiss[[s]]
-    gamma   <- est_gamma[[s]]
-    if(data_distr == "categorical"){
-      probs[[s]]    <- cat_mult_fw_r_to_cpp(x = as.matrix(s_data[s_data[,1] == id[s],][,-1], ncol = n_dep),
-                                       m = m, emiss = emiss, gamma = gamma, n_dep = n_dep, delta=NULL)[[1]]
-    } else if(data_distr == "continuous"){
-      probs[[s]]    <- cont_mult_fw_r_to_cpp(x = as.matrix(s_data[s_data[,1] == id[s],][,-1], ncol = n_dep),
-                            m = m, emiss = emiss, n_dep = n_dep, gamma = gamma)[[1]]
-    } else if(data_distr == "count"){
-      probs[[s]]    <- count_mult_fw_r_to_cpp(x = as.matrix(s_data[s_data[,1] == id[s],][,-1], ncol = n_dep),
-                                             m = m, emiss = emiss, n_dep = n_dep, gamma = gamma)[[1]]
+    emiss <- est_emiss[[s]] # extract emission parameters
+    gamma <- est_gamma[[s]] # extract transition probabilities
+    delta <- solve(t(diag(m) - gamma + 1), rep(1, m)) ## stationary probabilities
+    n_vary_s <- n_vary[s]
+    # obtain emission probabilities
+    prob_emiss <- all1(
+      x = as.matrix(s_data[s_data[,1] == id[s], -1], ncol = n_dep),
+      emiss = emiss,
+      data_distr = data_distr,
+      n_dep = n_dep
+    )
+    prob_emiss[is.na(prob_emiss)] <- 1 # impute 1 for missing values
+
+    ## start viterbi algorithm (based on Zucchini 2nd ed, p. 90)
+    xi <- matrix(NA, n_vary_s, m)
+    foo <- delta*prob_emiss[1,]
+    xi[1,] <- foo/sum(foo)
+    for(t in 2:n_vary_s){
+      foo <- apply(xi[t-1,]*gamma, 2, max)*prob_emiss[t,]
+      xi[t,] = foo/sum(foo)
     }
-    state_seq[[s]][,1] <- id[s]
-    state_seq[[s]][,2] <- apply(probs[[s]], 2, which.max)
+    iv <- numeric(n_vary_s)
+    iv[n_vary_s] <- which.max(xi[n_vary_s,])
+    for(t in (n_vary_s-1):1){
+      iv[t] = which.max(gamma[,iv[t+1]]*xi[t,])
+    }
+    state_seq[[s]][,1] <- id[s] # column with ids
+    state_seq[[s]][,2] <- iv # save state probabilities
+
+    ## compute forward probabilities if requested --> maybe need to think about instead returning filtered probabilities, but would need the backward algorithm for this
+    if(return_state_prob){
+      if(data_distr == "categorical"){
+        probs[[s]]    <- cat_mult_fw_r_to_cpp(x = as.matrix(s_data[s_data[,1] == id[s],][,-1], ncol = n_dep),
+                                         m = m, emiss = emiss, gamma = gamma, n_dep = n_dep, delta=NULL)[[1]]
+      } else if(data_distr == "continuous"){
+        probs[[s]]    <- cont_mult_fw_r_to_cpp(x = as.matrix(s_data[s_data[,1] == id[s],][,-1], ncol = n_dep),
+                              m = m, emiss = emiss, n_dep = n_dep, gamma = gamma)[[1]]
+      } else if(data_distr == "count"){
+        probs[[s]]    <- count_mult_fw_r_to_cpp(x = as.matrix(s_data[s_data[,1] == id[s],][,-1], ncol = n_dep),
+                                               m = m, emiss = emiss, n_dep = n_dep, gamma = gamma)[[1]]
+      }
+      }
   }
   state_seq_m <- do.call(rbind, state_seq)
   colnames(state_seq_m) <- c("subj", "state")
-  if(return_state_prob == TRUE){
+  if(return_state_prob){
     probs <- sapply(probs, t, simplify = FALSE)
     probs <- do.call(rbind, probs)
     colnames(probs) <- paste0("pr_state_", 1:m)
