@@ -38,8 +38,8 @@ summary.mHMM_vary <- function(object, ...){
   if(n_cont > 0){
     for(q in 1:n_cont){
       ind <- which_cont[q]
-      EM_pop[[ind]] <- matrix(round(c(apply(object$emiss_mu_bar[[q]][((burn_in + 1): J),], 2, median), apply(object$emiss_var_bar[[q]][((burn_in + 1): J),], 2, median)),3), ncol = 2, nrow = m)
-      colnames(EM_pop[[ind]]) <- c("Mean", "Variance")
+      EM_pop[[ind]] <- matrix(round(c(apply(object$emiss_mu_bar[[q]][((burn_in + 1): J),], 2, median), apply(object$emiss_sd_bar[[q]][((burn_in + 1): J),], 2, median)),3), ncol = 2, nrow = m)
+      colnames(EM_pop[[ind]]) <- c("Mean", "sd")
       rownames(EM_pop[[ind]]) <- paste("State", 1:m)
     }
   }
