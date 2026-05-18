@@ -20,7 +20,8 @@ mHMM_relabel_ecr(
   relabel_train = 100,
   relabel_type = "observed",
   relabel_steps = 1,
-  relabel_burnin = 10
+  relabel_burnin = 10,
+  relabel_group = FALSE
 )
 }
 \arguments{
@@ -140,6 +141,8 @@ applicable in case of categorical and count observations.}
 \item{relabel_steps}{Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.}
 
 \item{relabel_burnin}{First number of iterations to ignore for the training iterations of the relabeling algorithm.}
+
+\item{relabel_group}{Logical indicating whether subject-level pivots should be relabeled such that they align most with the group-level model.}
 }
 \value{
 \code{mHMM} returns an object of class \code{mHMM}, which has
