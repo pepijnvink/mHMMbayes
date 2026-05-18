@@ -127,7 +127,7 @@
 #' @param relabel_train Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.
 #' @param relabel_burnin First number of iterations to ignore for the training iterations of the relabeling algorithm.
 #' @param relabel_steps Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
-#' @param relabel_group. Logical indicating whether subject-level pivots should be relabeled such that they align most with the group-level model.
+#' @param relabel_group Logical indicating whether subject-level pivots should be relabeled such that they align most with the group-level model.
 #'
 #' @return \code{mHMM} returns an object of class \code{mHMM}, which has
 #'   \code{print} and \code{summary} methods to see the results.
