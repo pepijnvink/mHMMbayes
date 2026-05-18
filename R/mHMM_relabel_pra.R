@@ -548,7 +548,7 @@
 #'
 
 mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL, start_val, mcmc, return_path = FALSE, show_progress = TRUE,
-                         gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_steps = 1, relabel_burnin = 10){
+                         gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_steps = 1, relabel_burnin = 10, relabel_group = FALSE){
   # Initialize data -----------------------------------
   # dependent variable(s), sample size, dimensions gamma and conditional distribution
   if(sum(objects(gen) %in% "m") != 1 | sum(objects(gen) %in% "n_dep") != 1){
@@ -1381,13 +1381,6 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
         }
       }
     }
-
-    # create pivots
-    if(iter == (start_relabeling - 1)){
-      for(s in 1:n_subj){
-        PD_subj[[s]]$emiss_mean <- apply(PD_subj[[s]]$cont_emiss[((relabel_burnin+1):iter), 1:(n_dep*m)], 2, mean)
-      }
-    }
     # relabel states
     if(iter >= start_relabeling  & (((iter - start_relabeling) %% relabel_steps) == 0)){
       for(s in 1:n_subj){
@@ -1469,6 +1462,24 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
         }
         emiss_varmu_bar[[q]][iter,]	<- logvar_to_var(emiss_logmu_bar[[q]][iter, ], as.vector(unlist(sapply(emiss_V_mu, "[[", q))))
         emiss_logvarmu_bar[[q]][iter,]	<- as.vector(unlist(sapply(emiss_V_mu, "[[", q)))
+      }
+    }
+    # create pivots
+    if(iter == (start_relabeling - 1)){
+      group_emiss_mean <- apply(do.call('cbind', emiss_mu_bar)[(relabel_burnin+1):iter,], 2, mean) # group-level pivot
+      for(s in 1:n_subj){
+        PD_subj[[s]]$emiss_mean <- emiss_mean_s <- apply(PD_subj[[s]]$cont_emiss[((relabel_burnin+1):iter), 1:(n_dep*m)], 2, mean)
+        ## relabel to group level
+        if(relabel_group){
+          relab_group <- pra(
+            pivot_emiss = matrix(group_emiss_mean, nrow = m, byrow = FALSE),
+            parameters_emiss = matrix(emiss_mean_s, nrow = m, byrow = FALSE),
+            parameters_gamma = diag(m), # redundant for now (we are not relabeling any transition matrix)
+            m = m,
+            n_dep = n_dep
+          )
+          PD_subj[[s]]$emiss_mean <- c(relab_group$emiss_relabeled)
+        }
       }
     }
     if(show_progress == TRUE){

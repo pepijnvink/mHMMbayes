@@ -128,6 +128,7 @@
 #' @param relabel_burnin First number of iterations to ignore for the training iterations of the relabeling algorithm.
 #' @param relabel_type String specifying type of relabeling to perform. If "observed", the relabeling is only based on instances with observed data. If "all", the relabeling is based on all instances.
 #' @param relabel_steps Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
+#' @param relabel_group. Logical indicating whether subject-level pivots should be relabeled such that they align most with the group-level model.
 #'
 #' @return \code{mHMM} returns an object of class \code{mHMM}, which has
 #'   \code{print} and \code{summary} methods to see the results.
@@ -549,7 +550,7 @@
 #'
 
 mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL, start_val, mcmc, return_path = FALSE, show_progress = TRUE,
-                 gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_type = "observed", relabel_steps = 1, relabel_burnin = 10){
+                 gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_type = "observed", relabel_steps = 1, relabel_burnin = 10, relabel_group = FALSE){
   # Initialize data -----------------------------------
   # dependent variable(s), sample size, dimensions gamma and conditional distribution
   if(sum(objects(gen) %in% "m") != 1 | sum(objects(gen) %in% "n_dep") != 1){
@@ -1174,7 +1175,7 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
           PD_subj[[s]]$repermuted[iter] <- relab$switched # indicator if relabeled
         }
       }
-      if(iter > relabel_burnin){
+      if(iter > relabel_burnin){ # update pivot
         PD_subj[[s]]$sampled_state_freq[cbind(1:n_vary[[s]], samp_seq)] <- PD_subj[[s]]$sampled_state_freq[cbind(1:n_vary[[s]], samp_seq)] + 1 # update local decoding
       }
       for(t in (subj_data[[s]]$n_t - 1):1){
@@ -1410,8 +1411,6 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
        }
     }
 
-
-
     # End of 1 MCMC iteration, save output values --------
     gamma_int_bar[iter, ]				   	<- unlist(lapply(gamma_mu_int_bar, "[",1,))
     if(nx[1] > 1){
@@ -1445,6 +1444,25 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
           ))
         }
         emiss_varmu_bar[[q]][iter,]	<- as.vector(unlist(sapply(emiss_V_mu, "[[", q)))
+      }
+
+      # relabel to align with group-level
+      ## create pivots
+      if(relabel_group){
+        if(iter == (start_relabeling - 1)){
+          group_emiss_mean <- apply(do.call('cbind', emiss_mu_bar)[(relabel_burnin+1):iter,], 2, mean) # group-level pivot
+          for(s in 1:n_subj){
+            emiss_mean_subj <- apply(PD_subj[[s]]$cont_emiss[((relabel_burnin+1):iter), 1:(n_dep*m)], 2, mean)
+            ## relabel to group level using same loss function as the pivotal reordering algorithm
+            PD_subj[[s]]$sampled_state_freq <- ecr_align_group(
+              pivot_emiss = matrix(group_emiss_mean, nrow = m, byrow = FALSE),
+              parameters_emiss = matrix(emiss_mean_subj, nrow = m, byrow = FALSE),
+              freq_table = PD_subj[[s]]$sampled_state_freq,
+              m = m,
+              n_dep = n_dep
+            )
+          }
+        }
       }
     } else if(data_distr == 'count'){
       for(q in 1:n_dep){
