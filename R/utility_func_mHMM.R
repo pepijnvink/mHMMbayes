@@ -144,7 +144,7 @@ pra <- function(pivot_emiss, parameters_emiss, parameters_gamma, m, n_dep){
 }
 
 #' @keywords internal
-#' Align pivot sequence to group level when using ECR. Uses the same procedure as ECR
+#' Align pivot sequence to group level when using ECR. Uses the same procedure as PRA
 ecr_align_group <- function(
   pivot_emiss, # group_level parameter sequence
   parameters_emiss, # emission parameters
@@ -153,7 +153,6 @@ ecr_align_group <- function(
   n_dep
 ){
     align_mat <- matrix(0, m, m)
-
   ## compute dot products (to maximize later). indicates overall similarity of reference state i with sampled parameter j
   for(i in 1:m){
     for(j in 1:m){
@@ -162,7 +161,7 @@ ecr_align_group <- function(
   }
   ## transform to cost (needed by hungarian algorithm. also make all elements positive)
   align_mat <- max(align_mat) - align_mat
-  ## compute allocations. output is vector of length m. If element i==j, the j'th sampled state parameters will correspond to state i
+  ## compute allocations. output is vector of length m. If element i==j, the j'th sampled state parameters will correspond to state i. So if permute[1] == 2, second row must become the first row.
   permute <- RcppHungarian::HungarianSolver(align_mat)$pairs[,2]
   permute <- round(c(permute), 0) # due to potential rounding issues
   param_emiss_relabel <- parameters_emiss[permute, ]

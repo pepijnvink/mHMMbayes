@@ -129,6 +129,7 @@
 #' @param relabel_type String specifying type of relabeling to perform. If "observed", the relabeling is only based on instances with observed data. If "all", the relabeling is based on all instances.
 #' @param relabel_steps Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
 #' @param relabel_group Logical indicating whether subject-level pivots should be relabeled such that they align most with the group-level model.
+#' @param relabel_group_iter Numeric value specifying at which iteration pivots are aligned with the group-level. If NULL, performs alignment when subject-level relabeling starts.
 #'
 #' @return \code{mHMM} returns an object of class \code{mHMM}, which has
 #'   \code{print} and \code{summary} methods to see the results.
@@ -550,7 +551,7 @@
 #'
 
 mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL, start_val, mcmc, return_path = FALSE, show_progress = TRUE,
-                 gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_type = "observed", relabel_steps = 1, relabel_burnin = 10, relabel_group = FALSE){
+                 gamma_hyp_prior = NULL, emiss_hyp_prior = NULL, gamma_sampler = NULL, emiss_sampler = NULL, relabel_train = 100, relabel_type = "observed", relabel_steps = 1, relabel_burnin = 10, relabel_group = FALSE, relabel_group_iter = NULL){
   # Initialize data -----------------------------------
   # dependent variable(s), sample size, dimensions gamma and conditional distribution
   if(sum(objects(gen) %in% "m") != 1 | sum(objects(gen) %in% "n_dep") != 1){
@@ -654,6 +655,9 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
   J 				<- mcmc$J
   burn_in		<- mcmc$burn_in
   start_relabeling <- relabel_train + relabel_burnin + 1
+  if(is.null(relabel_group_iter)){
+    relabel_group_iter <- start_relabeling-1
+  }
 
   # Initalize priors and hyper priors --------------------------------
   # Initialize gamma sampler
@@ -1449,7 +1453,7 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
       # relabel to align with group-level
       ## create pivots
       if(relabel_group){
-        if(iter == (start_relabeling - 1)){
+        if(iter == relabel_group_iter){
           group_emiss_mean <- apply(do.call('cbind', emiss_mu_bar)[(relabel_burnin+1):iter,], 2, mean) # group-level pivot
           for(s in 1:n_subj){
             emiss_mean_subj <- apply(PD_subj[[s]]$cont_emiss[((relabel_burnin+1):iter), 1:(n_dep*m)], 2, mean)
