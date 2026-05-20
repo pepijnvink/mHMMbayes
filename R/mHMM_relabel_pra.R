@@ -1472,18 +1472,8 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
     # create pivots
     if(iter == (start_relabeling - 1)){
       for(s in 1:n_subj){
-        PD_subj[[s]]$emiss_mean <- emiss_mean_s <- apply(PD_subj[[s]]$cont_emiss[((relabel_burnin+1):iter), 1:(n_dep*m)], 2, mean)
+        PD_subj[[s]]$emiss_mean <- apply(PD_subj[[s]]$cont_emiss[((relabel_burnin+1):iter), 1:(n_dep*m)], 2, mean)
         ## relabel to group level
-        if(relabel_group){
-          relab_group <- pra(
-            pivot_emiss = matrix(group_emiss_mean, nrow = m, byrow = FALSE),
-            parameters_emiss = matrix(emiss_mean_s, nrow = m, byrow = FALSE),
-            parameters_gamma = diag(m), # redundant for now (we are not relabeling any transition matrix)
-            m = m,
-            n_dep = n_dep
-          )
-          PD_subj[[s]]$emiss_mean <- c(relab_group$emiss_relabeled)
-        }
       }
     }
     if(relabel_group){
