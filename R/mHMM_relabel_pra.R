@@ -128,7 +128,7 @@
 #' @param relabel_burnin First number of iterations to ignore for the training iterations of the relabeling algorithm.
 #' @param relabel_steps Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
 #' @param relabel_group Logical indicating whether subject-level pivots should be relabeled such that they align most with the group-level model.
-#' @param relabel_group_iter Numeric value specifying at which iteration pivots are aligned with the group-level. If NULL, performs alignment when subject-level relabeling starts.
+#' @param relabel_group_iter Numeric vector specifying at which iteration pivots are aligned with the group-level. If NULL, performs alignment when subject-level relabeling starts.
 #'
 #' @return \code{mHMM} returns an object of class \code{mHMM}, which has
 #'   \code{print} and \code{summary} methods to see the results.
@@ -1477,7 +1477,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
       }
     }
     if(relabel_group){
-      if(iter == relabel_group_iter){
+      if(iter %in% relabel_group_iter){
         group_emiss_mean <- apply(do.call('cbind', emiss_mu_bar)[(relabel_burnin+1):iter,], 2, mean) # group-level pivot
       for(s in 1:n_subj){
         ## relabel to group level
