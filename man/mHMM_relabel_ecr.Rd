@@ -145,7 +145,7 @@ applicable in case of categorical and count observations.}
 
 \item{relabel_group}{Logical indicating whether subject-level pivots should be relabeled such that they align most with the group-level model.}
 
-\item{relabel_group_iter}{Numeric value specifying at which iteration pivots are aligned with the group-level. If NULL, performs alignment when subject-level relabeling starts.}
+\item{relabel_group_iter}{Numeric vector specifying at which iteration pivots are aligned with the group-level. If NULL, performs alignment when subject-level relabeling starts.}
 }
 \value{
 \code{mHMM} returns an object of class \code{mHMM}, which has
