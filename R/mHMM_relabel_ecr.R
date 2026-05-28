@@ -656,7 +656,7 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
   burn_in		<- mcmc$burn_in
   start_relabeling <- relabel_train + relabel_burnin + 1
   if(is.null(relabel_group_iter)){
-    relabel_group_iter <- start_relabeling-1
+    relabel_group_iter <- (start_relabeling-1):J
   }
 
   # Initalize priors and hyper priors --------------------------------
