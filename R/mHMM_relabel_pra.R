@@ -1478,7 +1478,13 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
     }
     if(relabel_group){
       if(iter %in% relabel_group_iter){
-        group_emiss_mean <- apply(do.call('cbind', emiss_mu_bar)[(relabel_burnin+1):iter,], 2, mean) # group-level pivot
+        if(iter == relabel_group_iter[1]){
+          group_emiss_mean_denom <- iter-(relabel_burnin+1)
+          group_emiss_mean <- apply(do.call('cbind', emiss_mu_bar)[(relabel_burnin+1):iter,], 2, mean) # group-level pivot
+        } else {
+          group_emiss_mean_denom <- group_emiss_mean_denom + 1 # denominator for rolling mean
+          group_emiss_mean <- group_emiss_mean + (unlist(lapply(emiss_mu_bar, '[', iter, 1:m)) - group_emiss_mean)/group_emiss_mean_denom # update group-level pivot
+        }
       for(s in 1:n_subj){
         ## relabel to group level
           relab_group <- pra(

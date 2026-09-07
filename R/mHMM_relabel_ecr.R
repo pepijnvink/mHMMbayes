@@ -1454,13 +1454,25 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
       ## create pivots
       if(relabel_group){
         if(iter %in% relabel_group_iter){
-          group_emiss_mean <- apply(do.call('cbind', emiss_mu_bar)[(relabel_burnin+1):iter,], 2, mean) # group-level pivot
+          if(iter == relabel_group_iter[1]){
+            group_emiss_mean_denom <- iter-(relabel_burnin+1)
+            group_emiss_mean <- apply(do.call('cbind', emiss_mu_bar)[(relabel_burnin+1):iter,], 2, mean) # group-level pivot
+            emiss_mean_subj <- vector('list', s)
+            for(s in 1:n_subj){
+              emiss_mean_subj[[s]] <- apply(PD_subj[[s]]$cont_emiss[((relabel_burnin+1):iter), 1:(n_dep*m)], 2, mean)
+            }
+          } else {
+            group_emiss_mean_denom <- group_emiss_mean_denom + 1 # denominator for rolling mean
+            group_emiss_mean <- group_emiss_mean + (unlist(lapply(emiss_mu_bar, '[', iter, 1:m)) - group_emiss_mean)/group_emiss_mean_denom # update group-level pivot
+            for(s in 1:n_subj){
+              emiss_mean_subj[[s]] <- emiss_mean_subj + (PD_subj[[s]]$cont_emiss[iter, 1:(n_dep*m)] - emiss_mean_subj)/group_emiss_mean_denom # update subject-level parameter vector
+            }
+          }
           for(s in 1:n_subj){
-            emiss_mean_subj <- apply(PD_subj[[s]]$cont_emiss[((relabel_burnin+1):iter), 1:(n_dep*m)], 2, mean)
-            ## relabel to group level using same loss function as the pivotal reordering algorithm
+            ## relabel to group level using same procedure as the pivotal reordering algorithm
             PD_subj[[s]]$sampled_state_freq <- ecr_align_group(
               pivot_emiss = matrix(group_emiss_mean, nrow = m, byrow = FALSE),
-              parameters_emiss = matrix(emiss_mean_subj, nrow = m, byrow = FALSE),
+              parameters_emiss = matrix(emiss_mean_subj[[s]], nrow = m, byrow = FALSE),
               freq_table = PD_subj[[s]]$sampled_state_freq,
               m = m,
               n_dep = n_dep
