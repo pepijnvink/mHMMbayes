@@ -1465,7 +1465,7 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
             group_emiss_mean_denom <- group_emiss_mean_denom + 1 # denominator for rolling mean
             group_emiss_mean <- group_emiss_mean + (unlist(lapply(emiss_mu_bar, '[', iter, 1:m)) - group_emiss_mean)/group_emiss_mean_denom # update group-level pivot
             for(s in 1:n_subj){
-              emiss_mean_subj[[s]] <- emiss_mean_subj + (PD_subj[[s]]$cont_emiss[iter, 1:(n_dep*m)] - emiss_mean_subj)/group_emiss_mean_denom # update subject-level parameter vector
+              emiss_mean_subj[[s]] <- emiss_mean_subj[[s]] + (PD_subj[[s]]$cont_emiss[iter, 1:(n_dep*m)] - emiss_mean_subj[[s]])/group_emiss_mean_denom # update subject-level parameter vector
             }
           }
           for(s in 1:n_subj){
