@@ -167,7 +167,7 @@ ecr_align_group <- function(
   param_emiss_relabel <- parameters_emiss[permute, ]
   freq_table <- freq_table[, permute]
   is_switched <- !(isTRUE(all.equal(permute, 1:m)))
-  return(freq_table)
+  return(freq_table = freq_table, param_emiss_relabel = param_emiss_relabel)
 }
 
 #' @keywords internal

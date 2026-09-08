@@ -1470,13 +1470,15 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
           }
           for(s in 1:n_subj){
             ## relabel to group level using same procedure as the pivotal reordering algorithm
-            PD_subj[[s]]$sampled_state_freq <- ecr_align_group(
+            relab_group_results <- ecr_align_group(
               pivot_emiss = matrix(group_emiss_mean, nrow = m, byrow = FALSE),
               parameters_emiss = matrix(emiss_mean_subj[[s]], nrow = m, byrow = FALSE),
               freq_table = PD_subj[[s]]$sampled_state_freq,
               m = m,
               n_dep = n_dep
             )
+          PD_subj[[s]]$sampled_state_freq <- relab_group_results$freq_table
+          emiss_mean_subj[[s]] <- relab_group_results$param_emiss_relabel
           }
         }
       }
