@@ -104,7 +104,7 @@ ecr <- function(pivot, alloc, m){
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
   is_switched <- !(identical(permutation, 1:m)) # check if relabeling happens
   x_repermute <- permutation[alloc] # old state == i --> take the ith element in permutation
-  return(list(switched = is_switched, sequence = x_repermute))
+  return(list(switched = is_switched, sequence = x_repermute, permutation = permutation))
 }
 
 #' @keywords internal
@@ -118,7 +118,7 @@ ecr_observed <- function(pivot, alloc, observed, m){
   permutation <- RcppHungarian::HungarianSolver(cost_mat)$pairs[,2]
   is_switched <- !(identical(permutation, 1:m)) # check if relabeling happens
   x_repermute <- permutation[alloc] # old state == i --> take the ith element in permutation
-  return(list(switched = is_switched, sequence = x_repermute))
+  return(list(switched = is_switched, sequence = x_repermute, permutation = permutation))
 }
 
 #' @keywords internal
