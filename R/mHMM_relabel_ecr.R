@@ -1457,7 +1457,7 @@ mHMM_relabel_ecr <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
           if(iter == relabel_group_iter[1]){
             group_emiss_mean_denom <- iter-(relabel_burnin+1)
             group_emiss_mean <- apply(do.call('cbind', emiss_mu_bar)[(relabel_burnin+1):iter,], 2, mean) # group-level pivot
-            emiss_mean_subj <- vector('list', s)
+            emiss_mean_subj <- vector("list", n_subj)
             for(s in 1:n_subj){
               emiss_mean_subj[[s]] <- apply(PD_subj[[s]]$cont_emiss[((relabel_burnin+1):iter), 1:(n_dep*m)], 2, mean)
             }
