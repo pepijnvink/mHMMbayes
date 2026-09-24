@@ -1404,6 +1404,7 @@ mHMM_relabel_pra <- function(s_data, data_distr = 'categorical', gen, xx = NULL,
         gamma_int_subj[[s]][iter,] <- c(t(gamma_relabeled_int))
         for(i in 1:m){
           gamma_c_int[[i]][s,] <- gamma_relabeled_int[i,]
+          gamma[[s]][i,] <- gamma_relabeled[i,]
           for(q in 1:n_dep){
             emiss[[s]][[q]][i,1] <- emiss_relabeled[i, q]
             emiss_c_mu[[i]][[q]][s,1] <- emiss_relabeled[i, q]
