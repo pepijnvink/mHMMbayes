@@ -1184,6 +1184,7 @@ mHMM_relabel_ecr_cat <- function(s_data, data_distr = 'categorical', gen, xx = N
         sample_path[[s]][t,iter] 	              <- sample(1:m, 1, prob = (alpha[, t] * gamma[[s]][,sample_path[[s]][t + 1, iter]]))
       }
       samp_seq <- sample_path[[s]][,iter]
+      relab <- NULL
       if(iter >= start_relabeling & (((iter - start_relabeling) %% relabel_steps) == 0)){ ## relabel sampled sequence
         if(relabel_type == "all"){ # if also relabel unobserved
           pivot <- max.col(PD_subj[[s]]$sampled_state_freq, ties.method = "random") # create pivot
@@ -1197,6 +1198,21 @@ mHMM_relabel_ecr_cat <- function(s_data, data_distr = 'categorical', gen, xx = N
           samp_seq <- relab$sequence # relabel sampled sequence
           sample_path[[s]][,iter] <- samp_seq # save relabeled sequence
           PD_subj[[s]]$repermuted[iter] <- relab$switched # indicator if relabeled
+        }
+      }
+      if(isTRUE(relab$switched)){ # relabel centre of the proposals of the previous iteration
+        permute <- order(relab$permutation) # old state that becomes new state i
+        gamma_relabeled_int <- prob_to_int(int_to_prob_noround(matrix(unlist(lapply(gamma_c_int, "[", s, )), nrow = m, byrow = TRUE))[permute, permute])
+        emiss_c_prev <- if(data_distr == 'categorical') emiss_c_int else emiss_c_mu
+        for(i in 1:m){
+          gamma_c_int[[i]][s,] <- gamma_relabeled_int[i,]
+          for(q in 1:n_dep){
+            if(data_distr == 'categorical'){
+              emiss_c_int[[i]][[q]][s,] <- emiss_c_prev[[permute[i]]][[q]][s,]
+            } else {
+              emiss_c_mu[[i]][[q]][s,1] <- emiss_c_prev[[permute[i]]][[q]][s,1]
+            }
+          }
         }
       }
       if(iter > relabel_burnin){ # update pivot
