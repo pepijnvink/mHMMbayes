@@ -15,8 +15,8 @@
 #' Compared to \code{\link{mHMM_relabel_pra}}, the relabeling algorithm is also implemented for
 #' categorical observations. States are then aligned on the emission probabilities, with the
 #' dependent variables concatenated over the columns. Relabeling of the subject level pivots
-#' towards the group level (\code{relabel_group}) remains available for continuous observations
-#' only.
+#' towards the group level (\code{relabel_group}) is also implemented for categorical
+#' observations.
 #'
 #' Covariates specified in \code{xx} can either be dichotomous or continuous
 #' variables. Dichotomous variables have to be coded as 0/1 variables.
@@ -132,7 +132,7 @@
 #' @param relabel_train Integer specifying number of training iterations to use to obtain a pivot for relabeling after burnin.
 #' @param relabel_burnin First number of iterations to ignore for the training iterations of the relabeling algorithm.
 #' @param relabel_steps Integer specifying when to check for relabeling. If `1`, relabels for every iteration after burnin and training. If `2`, relabels for every second iteration etc.
-#' @param relabel_group Logical indicating whether subject-level pivots should be relabeled such that they align most with the group-level model.
+#' @param relabel_group Logical indicating whether subject-level pivots should be relabeled such that they align most with the group-level model. Available for continuous and categorical observations.
 #' @param relabel_group_iter Numeric vector specifying at which iteration pivots are aligned with the group-level. If NULL, performs alignment when subject-level relabeling starts.
 #'
 #' @return \code{mHMM} returns an object of class \code{mHMM}, which has
@@ -1527,15 +1527,27 @@ mHMM_relabel_pra_cat <- function(s_data, data_distr = 'categorical', gen, xx = N
     }
     if(relabel_group){
       if(iter %in% relabel_group_iter){
+        # emiss_prob_bar has the same layout as PD_subj[[s]]$cat_emiss (per dependent
+        # variable, then per state), so both pivots can be handed to cat_emiss_to_mat()
+        group_emiss_bar <- if(data_distr == 'categorical') emiss_prob_bar else emiss_mu_bar
         if(iter == relabel_group_iter[1]){
           group_emiss_mean_denom <- iter-(relabel_burnin+1)
-          group_emiss_mean <- apply(do.call('cbind', emiss_mu_bar)[(relabel_burnin+1):iter,], 2, mean) # group-level pivot
+          group_emiss_mean <- apply(do.call('cbind', group_emiss_bar)[(relabel_burnin+1):iter, , drop = FALSE], 2, mean) # group-level pivot
         } else {
           group_emiss_mean_denom <- group_emiss_mean_denom + 1 # denominator for rolling mean
-          group_emiss_mean <- group_emiss_mean + (unlist(lapply(emiss_mu_bar, '[', iter, 1:m)) - group_emiss_mean)/group_emiss_mean_denom # update group-level pivot
+          group_emiss_mean <- group_emiss_mean + (unlist(lapply(group_emiss_bar, function(e) e[iter, ])) - group_emiss_mean)/group_emiss_mean_denom # update group-level pivot
         }
       for(s in 1:n_subj){
         ## relabel to group level
+        if(data_distr == 'categorical'){
+          relab_group <- pra_cat(
+            pivot_emiss = cat_emiss_to_mat(group_emiss_mean, m = m, q_emiss = q_emiss),
+            parameters_emiss = cat_emiss_to_mat(PD_subj[[s]]$emiss_mean, m = m, q_emiss = q_emiss),
+            parameters_gamma = diag(m), # redundant for now (we are not relabeling any transition matrix)
+            m = m
+          )
+          PD_subj[[s]]$emiss_mean <- cat_mat_to_emiss(relab_group$emiss_relabeled, m = m, q_emiss = q_emiss)
+        } else {
           relab_group <- pra(
             pivot_emiss = matrix(group_emiss_mean, nrow = m, byrow = FALSE),
             parameters_emiss = matrix(PD_subj[[s]]$emiss_mean, nrow = m, byrow = FALSE),
@@ -1544,6 +1556,7 @@ mHMM_relabel_pra_cat <- function(s_data, data_distr = 'categorical', gen, xx = N
             n_dep = n_dep
           )
           PD_subj[[s]]$emiss_mean <- c(relab_group$emiss_relabeled)
+        }
         }
       }
     }
